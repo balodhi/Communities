@@ -528,7 +528,7 @@ fviz_cluster(db, df, stand = FALSE, frame = FALSE, geom = "point")
 
 
 # function to extract clusters from DBSCAN
-dbclust = function(data, eps = 230, minPts = 15) {
+dbclust = function(data, eps = 180, minPts = 15) {
 	db = dbscan(data, eps = eps, minPts = minPts)
 	return(db$cluster)
 }
@@ -585,6 +585,112 @@ db.n2 %>%
 	theme(
 	axis.text.x = element_text(angle = 45))
 
+
+
+# density plots after filtering
+
+p1 = db.n2 %>% 
+	filter(group != 0) %>%
+	ggplot(aes(Extinction, fill = Bacteria, colour = Bacteria)) +
+	geom_density(alpha = 0.1) +
+	facet_wrap(~Bacteria) +
+	theme_light()
+
+
+p2 = db.n2 %>% 
+	filter(group != 0) %>%
+	ggplot(aes(TOF, fill = Bacteria, colour = Bacteria)) +
+	geom_density(alpha = 0.1) +
+	facet_wrap(~Bacteria) +
+	theme_light()
+
+ggarrange(p1, p2, 
+          labels = c("Extinction (N2)", "TOF (N2)"),
+          ncol = 2, nrow = 1)
+
+
+quartz.save(file = here('exploration', 'DBSCAN_n2_density.pdf'),
+	type = 'pdf', dpi = 300, height = 8, width = 17)
+
+
+p1 = db.ep2 %>% 
+	filter(group != 0) %>%
+	ggplot(aes(Extinction, fill = Bacteria, colour = Bacteria)) +
+	geom_density(alpha = 0.1) +
+	facet_wrap(~Bacteria) +
+	theme_light()
+
+
+p2 = db.ep2 %>% 
+	filter(group != 0) %>%
+	ggplot(aes(TOF, fill = Bacteria, colour = Bacteria)) +
+	geom_density(alpha = 0.1) +
+	facet_wrap(~Bacteria) +
+	theme_light()
+
+ggarrange(p1, p2, 
+          labels = c("Extinction (ep2)", "TOF (ep2)"),
+          ncol = 2, nrow = 1)
+
+
+quartz.save(file = here('exploration', 'DBSCAN_ep2_density.pdf'),
+	type = 'pdf', dpi = 300, height = 8, width = 17)
+
+
+
+
+# lets run some Shapiro Wilk tests
+
+tof.shapiro = db.n2 %>%
+	filter(group != 0) %>%
+	group_by(Bacteria) %>%
+	nest %>%
+	mutate(shapiro = map(data, ~shapiro.test(.x$Extinction))) %>%
+	select(Bacteria, shapiro) %>%
+	mutate(results = map(shapiro, ~tidy(.x))) %>%
+	select(Bacteria, results) %>% unnest
+
+
+
+# 2D density plots
+
+
+p1 = db.n2 %>% 
+	filter(group != 0) %>%
+	ggplot(aes(x = TOF, y = Extinction)) +
+	stat_density_2d(aes(fill = stat(nlevel)), geom = "polygon") +
+	facet_wrap(~Bacteria) +
+	xlim(0, 3200) +
+	ylim(0, 530) +
+	scale_fill_viridis_c() +
+	theme_light()
+
+p2 = db.ep2 %>% 
+	filter(group != 0) %>%
+	ggplot(aes(x = TOF, y = Extinction)) +
+	stat_density_2d(aes(fill = stat(nlevel)), geom = "polygon") +
+	facet_wrap(~Bacteria) +
+	scale_fill_viridis_c() +
+	# xlim(0, 3200) +
+	# ylim(0, 530) +
+	theme_light()
+
+
+ggarrange(p1, p2, 
+          labels = c("N2", "ep2"),
+          ncol = 2, nrow = 1)
+
+quartz.save(file = here('exploration', 'DBSCAN_2d_density.pdf'),
+	type = 'pdf', dpi = 300, height = 8, width = 17)
+
+
+p1
+quartz.save(file = here('exploration', 'DBSCAN_2d_n2_density.pdf'),
+	type = 'pdf', dpi = 300, height = 8, width = 10)
+
+p2
+quartz.save(file = here('exploration', 'DBSCAN_2d_ep2_density.pdf'),
+	type = 'pdf', dpi = 300, height = 8, width = 10)
 
 
 
@@ -655,106 +761,18 @@ db.n2 %>% filter(Bacteria %in% c('GCB', 'MG1655')) %>%
 
 
 
-summary(res.man)
 
 
+
+
+
+# MANOVA test
 
 thing = db.n2 %>% filter(Bacteria %in% c('GCB', 'MG1655')) %>% mutate(Bacteria = as.factor(Bacteria))
 res.man <- manova(cbind(TOF, Extinction) ~ Bacteria, data = thing)
+summary(res.man)
 
 
-
-
-
-
-
-
-
-
-
-
-
-# boxplot of sample comparison
-
-
-n2.coord = n2.pca %>% mutate(coord = map(pca, ~rescale(.x))) %>% 
-	select(Bacteria, coord) %>% unnest
-n2.coord['strain'] = 'n2'
-
-
-ep2.coord = ep2.pca %>% mutate(coord = map(pca, ~rescale(.x))) %>% 
-	select(Bacteria, coord) %>% unnest
-ep2.coord['strain'] = 'ep2'
-
-
-total.coord = rbind(n2.coord, ep2.coord)
-
-
-total.coord %>% ggplot(aes(x = strain, y = coord, colour = strain)) +
-	geom_boxplot(position = position_dodge()) +
-	facet_wrap(~Bacteria, scales = "free")
-
-quartz.save(file = here('exploration', 'boxplot_PC1.pdf'),
-	type = 'pdf', dpi = 300, height = 13, width = 15)
-
-
-
-
-
-total.coord['replicate'] = total$Replicator
-
-## boxplot by replicate
-
-total.coord %>% ggplot(aes(x = replicate, y = coord, fill = strain)) +
-	geom_boxplot(position = position_dodge()) +
-	facet_wrap(~Bacteria, scales = "free") +
-	theme_light() +
-	labs(title = 'Replicates Boxplot') +
-	theme(
-		plot.title = element_text(hjust = 0.5, face = "bold"),
-		axis.text.x = element_text(angle = 45))
-
-
-quartz.save(file = here('exploration', 'boxplot_PC1_replicates.pdf'),
-	type = 'pdf', dpi = 300, height = 10, width = 12)
-
-
-
-total.sum = total.coord %>% 
-	group_by(Bacteria, strain, replicate) %>%
-	summarise(
-			Mean = mean(coord), 
-			SD = sd(coord),
-			Median = median(coord)) %>%
-	group_by(Bacteria, strain) %>%
-	mutate(w = 1/(SD**2),
-		   w_norm = w/(sum(1/(SD**2)))) %>%
-	ungroup
-
-# calculate means and sd (weighted and unweighted) of means
-w.sum = total.sum %>%
-	group_by(Bacteria, strain) %>%
-	summarise(aMean = mean(Mean),
-			  aSD = sd(Mean),
-			  w_Mean = wt.mean(Mean, w),
-			  w_SD = wt.sd(Mean, w))
-
-
-# barplot with points and error
-
-w.sum %>% 
-	ggplot(aes(x = Bacteria, y = w_Mean, colour = strain, group = strain)) +
-	geom_errorbar(aes(ymin = w_Mean - w_SD, ymax = w_Mean + w_SD), position = position_dodge(0.9), width = 0.1) +
-	geom_bar(aes(fill = strain), stat = 'identity', position = position_dodge(), alpha = 0.1) +
-	geom_point(data = total.sum, aes(x = Bacteria, y = Mean), position = position_jitterdodge(dodge.width = 1, jitter.width = 0.1), alpha = 0.8) +
-	scale_color_manual(values = c('#0000FEFF', '#107F01FF')) +
-	scale_fill_manual(values = c('#0000FEFF', '#107F01FF')) +
-	labs(x = 'Bacteria',
-		y = 'PC1 mean value') +
-	theme_light()
-
-quartz.save(file = here('exploration', 'barplot_PC1_replicates.pdf'),
-	type = 'pdf', dpi = 300, height = 6, width = 9)
 
 
 
