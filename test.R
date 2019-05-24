@@ -7,6 +7,7 @@ library(factoextra) # for PCA
 library(readxl)
 library(SDMTools) # for weighted statistics
 library(ggpubr)
+library(dbscan)
 library(here)
 
 source('/Users/dmarti14/Documents/MRC_Postdoc/scripts/R_functions/all_functions.R')
@@ -93,8 +94,8 @@ n2.pca %>%
 	mutate(var_exp = map(pca, ~pca_info(.x))) %>%
 	select(Bacteria, var_exp) %>%
 	unnest %>%
-	ggplot(aes(x = Bacteria, y = var_exp)) + 
-		geom_bar(stat = "identity") +
+	ggplot(aes(x = Bacteria, y = var_exp, fill = Bacteria)) + 
+		geom_bar(stat = "identity", colour = 'black') +
 		labs(title = '% of variability explained in PC1') +
 		theme_light()
 
@@ -573,21 +574,187 @@ quartz.save(file = here('exploration', 'DBSCAN_n2_ep2.pdf'),
 	type = 'pdf', dpi = 300, height = 8, width = 17)
 
 
+# plot number of outliers per sample
 db.n2 %>%
 	group_by(Bacteria, Replicator, group) %>%
 	summarise(N = n()) %>%
 	filter(group == 0) %>%
 	ggplot(aes(x = Replicator, y = N, fill = Bacteria)) +
 	geom_bar(stat = 'identity', color = 'black') +
+	theme_light() +
+	theme(
+	axis.text.x = element_text(angle = 45))
+
+
+
+
+
+# test again the PCR explanation with filtered data
+
+
+# nest and PCA calculation
+n2.pca.db = db.n2 %>% 
+	filter(group != 0) %>%
+	select(-group) %>%
+	group_by(Bacteria) %>% 
+	nest %>%
+	mutate(pca = map(data, ~ PCA(.x %>% select(-Replicator), 
+		scale.unit = FALSE, ncp = 2, graph = F)))
+
+
+n2.pca.db %>% 
+	mutate(var_exp = map(pca, ~pca_info(.x))) %>%
+	select(Bacteria, var_exp) %>%
+	unnest %>%
+	ggplot(aes(x = Bacteria, y = var_exp, fill = Bacteria)) + 
+		geom_bar(stat = "identity", colour = 'black') +
+		labs(title = '% of variability explained in PC1') +
+		theme_light()
+
+
+quartz.save(file = here('exploration', 'var_exp_N2_db.pdf'),
+	type = 'pdf', dpi = 300, height = 7, width = 7)
+
+
+
+
+
+# let's start with something simple: comparison of three bacteria in the two strains
+
+sub.n2 = n2.pca.db %>% filter(Bacteria %in% c('GCB', 'op50', 'MG1655'))
+
+rescale = function(data){
+	vector = data$ind$coord[,1] + abs(min(data$ind$coord[,1]))
+	return(vector)
+}
+
+test.n2 = sub.n2 %>% mutate(coord = map(pca, ~rescale(.x))) %>% 
+	select(Bacteria, coord) %>% unnest
+
+ggplot(test.n2, aes(x = Bacteria, y = coord, fill = Bacteria)) + 
+	geom_boxplot(alpha = 0.9) +
+	geom_jitter(position = position_jitter(0.3), alpha = 0.3) +
+	theme_light()
+
+
+
+model = aov(coord ~ Bacteria, data = test.n2)
+TukeyHSD(model)
+
+quartz.save(file = here('exploration', 'boxplot_test_db.pdf'),
+	type = 'pdf', dpi = 300, height = 7, width = 7)
+
+
+
+
+db.n2 %>% filter(Bacteria %in% c('GCB', 'MG1655')) %>%
+	ggplot(aes(x = TOF, y = Extinction, colour = Bacteria)) +
+	geom_point(size = 1, alpha = 0.5) +
 	theme_light()
 
 
 
 
+summary(res.man)
+
+
+
+thing = db.n2 %>% filter(Bacteria %in% c('GCB', 'MG1655')) %>% mutate(Bacteria = as.factor(Bacteria))
+res.man <- manova(cbind(TOF, Extinction) ~ Bacteria, data = thing)
 
 
 
 
+
+
+
+
+
+
+
+
+
+# boxplot of sample comparison
+
+
+n2.coord = n2.pca %>% mutate(coord = map(pca, ~rescale(.x))) %>% 
+	select(Bacteria, coord) %>% unnest
+n2.coord['strain'] = 'n2'
+
+
+ep2.coord = ep2.pca %>% mutate(coord = map(pca, ~rescale(.x))) %>% 
+	select(Bacteria, coord) %>% unnest
+ep2.coord['strain'] = 'ep2'
+
+
+total.coord = rbind(n2.coord, ep2.coord)
+
+
+total.coord %>% ggplot(aes(x = strain, y = coord, colour = strain)) +
+	geom_boxplot(position = position_dodge()) +
+	facet_wrap(~Bacteria, scales = "free")
+
+quartz.save(file = here('exploration', 'boxplot_PC1.pdf'),
+	type = 'pdf', dpi = 300, height = 13, width = 15)
+
+
+
+
+
+total.coord['replicate'] = total$Replicator
+
+## boxplot by replicate
+
+total.coord %>% ggplot(aes(x = replicate, y = coord, fill = strain)) +
+	geom_boxplot(position = position_dodge()) +
+	facet_wrap(~Bacteria, scales = "free") +
+	theme_light() +
+	labs(title = 'Replicates Boxplot') +
+	theme(
+		plot.title = element_text(hjust = 0.5, face = "bold"),
+		axis.text.x = element_text(angle = 45))
+
+
+quartz.save(file = here('exploration', 'boxplot_PC1_replicates.pdf'),
+	type = 'pdf', dpi = 300, height = 10, width = 12)
+
+
+
+total.sum = total.coord %>% 
+	group_by(Bacteria, strain, replicate) %>%
+	summarise(
+			Mean = mean(coord), 
+			SD = sd(coord),
+			Median = median(coord)) %>%
+	group_by(Bacteria, strain) %>%
+	mutate(w = 1/(SD**2),
+		   w_norm = w/(sum(1/(SD**2)))) %>%
+	ungroup
+
+# calculate means and sd (weighted and unweighted) of means
+w.sum = total.sum %>%
+	group_by(Bacteria, strain) %>%
+	summarise(aMean = mean(Mean),
+			  aSD = sd(Mean),
+			  w_Mean = wt.mean(Mean, w),
+			  w_SD = wt.sd(Mean, w))
+
+
+# barplot with points and error
+
+w.sum %>% 
+	ggplot(aes(x = Bacteria, y = w_Mean, colour = strain, group = strain)) +
+	geom_errorbar(aes(ymin = w_Mean - w_SD, ymax = w_Mean + w_SD), position = position_dodge(0.9), width = 0.1) +
+	geom_bar(aes(fill = strain), stat = 'identity', position = position_dodge(), alpha = 0.1) +
+	geom_point(data = total.sum, aes(x = Bacteria, y = Mean), position = position_jitterdodge(dodge.width = 1, jitter.width = 0.1), alpha = 0.8) +
+	scale_color_manual(values = c('#0000FEFF', '#107F01FF')) +
+	scale_fill_manual(values = c('#0000FEFF', '#107F01FF')) +
+	labs(x = 'Bacteria',
+		y = 'PC1 mean value') +
+	theme_light()
+
+quartz.save(file = here('exploration', 'barplot_PC1_replicates.pdf'),
+	type = 'pdf', dpi = 300, height = 6, width = 9)
 
 
 
