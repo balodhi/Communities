@@ -40,6 +40,80 @@ gcb.n2 = n2 %>% filter(Bacteria == 'GCB') %>% select(-Replicator, -Bacteria)
 mg.n2 = n2 %>% filter(Bacteria == 'MG1655') %>% select(-Replicator, -Bacteria)
 
 
+### general outview of plates
+
+
+p1 = n2 %>% ggplot(aes(x = TOF, y = Extinction, colour = Bacteria)) + geom_point(alpha = 0.7, size = 1) + facet_wrap(~Bacteria) + theme_light()
+p2 = ep2 %>% ggplot(aes(x = TOF, y = Extinction, colour = Bacteria)) + geom_point(alpha = 0.7, size = 1) + facet_wrap(~Bacteria) + theme_light()
+
+ggarrange(p2, p1, 
+          labels = c("N2", "ep2"),
+          ncol = 2, nrow = 1)
+
+
+quartz.save(file ='General_overview.pdf',
+	type = 'pdf', dpi = 300, height = 8, width = 17)
+
+ggsave(file = "General_overview.pdf",
+       width = 150, height = 75, units = 'mm', scale = 2, device = cairo_pdf, family = "Arial")
+
+
+###########
+### Density plots 
+
+# density plots after filtering
+
+p1 = n2 %>% 
+	ggplot(aes(Extinction, fill = Bacteria, colour = Bacteria)) +
+	geom_density(alpha = 0.1) +
+	facet_wrap(~Bacteria) +
+	theme_light()
+
+
+p2 = n2 %>% 
+	ggplot(aes(TOF, fill = Bacteria, colour = Bacteria)) +
+	geom_density(alpha = 0.1) +
+	facet_wrap(~Bacteria) +
+	theme_light()
+
+ggarrange(p1, p2, 
+          labels = c("Extinction (N2)", "TOF (N2)"),
+          ncol = 2, nrow = 1)
+
+
+quartz.save(file = here('exploration', 'n2_density.pdf'),
+	type = 'pdf', dpi = 300, height = 8, width = 17)
+
+
+p1 = db.ep2 %>% 
+	ggplot(aes(Extinction, fill = Bacteria, colour = Bacteria)) +
+	geom_density(alpha = 0.1) +
+	facet_wrap(~Bacteria) +
+	theme_light()
+
+
+p2 = db.ep2 %>% 
+	ggplot(aes(TOF, fill = Bacteria, colour = Bacteria)) +
+	geom_density(alpha = 0.1) +
+	facet_wrap(~Bacteria) +
+	theme_light()
+
+ggarrange(p1, p2, 
+          labels = c("Extinction (ep2)", "TOF (ep2)"),
+          ncol = 2, nrow = 1)
+
+
+quartz.save(file = here('exploration', 'ep2_density.pdf'),
+	type = 'pdf', dpi = 300, height = 8, width = 17)
+
+
+
+
+
+
+
+
+
 # lets compute the PCA
 res1 = PCA(gcb.n2, scale.unit = FALSE, ncp = 5, graph = F)
 res2 = PCA(mg.n2, scale.unit = FALSE, ncp = 5, graph = F)
@@ -203,13 +277,24 @@ rescale = function(data){
 test.n2 = sub.n2 %>% mutate(coord = map(pca, ~rescale(.x))) %>% 
 	select(Bacteria, coord) %>% unnest
 
-ggplot(test.n2, aes(x = Bacteria, y = coord, colour = Bacteria)) + geom_boxplot()
+ggplot(test.n2, aes(x = Bacteria, y = coord, fill = Bacteria)) + 
+	geom_boxplot() +
+	geom_point(alpha = 0.5, position = position_jitterdodge()) +
+	theme_light()
+
+quartz.save(file = here('exploration', 'boxplot_PC1.pdf'),
+	type = 'pdf', dpi = 300, height = 13, width = 15)
 
 
 
 model = aov(coord ~ Bacteria, data = test.n2)
+summary(model)
+TukeyHSD(model)
 
+### Wilcoxon test
 
+kruskal = pairwise.wilcox.test(test.n2$coord, test.n2$Bacteria, p.adjust.method = "fdr")
+tidy(kruskal)
 
 
 # boxplot of sample comparison
@@ -639,13 +724,21 @@ quartz.save(file = here('exploration', 'DBSCAN_ep2_density.pdf'),
 
 
 
+
+
+
+
+
+
+
+
 # lets run some Shapiro Wilk tests
 
-tof.shapiro = db.n2 %>%
+tof.shapiro = db.ep2 %>%
 	filter(group != 0) %>%
 	group_by(Bacteria) %>%
 	nest %>%
-	mutate(shapiro = map(data, ~shapiro.test(.x$Extinction))) %>%
+	mutate(shapiro = map(data, ~shapiro.test(.x$TOF))) %>%
 	select(Bacteria, shapiro) %>%
 	mutate(results = map(shapiro, ~tidy(.x))) %>%
 	select(Bacteria, results) %>% unnest
