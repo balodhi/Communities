@@ -46,13 +46,18 @@ parser.add_option("-o", "--output",
 
 # Functions
 
+# creates Bacteria column in dataframe
 def bact(df):
 	v = []
 	for i in range(df.shape[0]):
 		v.append(df['Sample'][i].split('_')[0])
 	return(v)
 
-
+# outputs the number of rows for the scatter plot
+def plot_nrow(df, var):
+	elm = len(set(df[str(var)]))
+	ncols = math.ceil(elm/3)
+	return(ncols)
 
 
 
@@ -90,7 +95,7 @@ for index in ind:
 
 # read input file
 copas = pd.read_csv('n2_1day_adult_9bacteria_1.txt', sep = "\t", header = 0)
-
+copas2 = pd.read_csv('ep2_1day_adult_9bacteria_1_1.txt', sep = "\t", header = 0)
 # remove rubish rows at the end of COPAS file
 # I should do it in a more robust way
 limit = copas.index[copas['Id'] == 'INSTRUMENT SETTINGS  HAVE BEEN MODIFIED DURING OR AFTER DATA ACQUISITION!'].tolist()
@@ -98,6 +103,15 @@ copas = copas.iloc[:limit[0], :]
 
 # select columns to work
 copas = copas[['Id', 'Source well', 'TOF', 'Extinction']]
+
+#####
+## copas 2
+limit = copas2.index[copas2['Id'] == 'INSTRUMENT SETTINGS  HAVE BEEN MODIFIED DURING OR AFTER DATA ACQUISITION!'].tolist()
+copas2 = copas2.iloc[:limit[0], :]
+
+# select columns to work
+copas2 = copas2[['Id', 'Source well', 'TOF', 'Extinction']]
+
 
 # create a df from dict
 wells_df = pd.DataFrame.from_dict(list(wells.items()))
@@ -108,6 +122,11 @@ wells_df['Bacteria'] = bact(wells_df) # creates an extra column with bacterial n
 # merge dfs
 copas = pd.merge(copas, wells_df, on = 'Source well', how = 'left')
 copas = copas[(copas['Extinction'] > 50) & (copas['TOF'] > 350)]
+
+# merge dfs
+copas2 = pd.merge(copas2, wells_df, on = 'Source well', how = 'left')
+copas2 = copas2[(copas2['Extinction'] > 50) & (copas2['TOF'] > 350)]
+
 
 
 
@@ -121,22 +140,6 @@ copas = copas[(copas['Extinction'] > 50) & (copas['TOF'] > 350)]
 ###
 # scatter plots
 # test
-
-test = copas[copas['Bacteria'] == 'OP50']
-
-plt.scatter(test['TOF'], test['Extinction'], alpha = 0.7)
-plt.show()
-
-
-
-fig, ax = plt.subplots()
-
-copas.groupby('Bacteria').plot(x = 'TOF', y = 'Extinction', subplots = True)
-
-
-copas.groupby('Bacteria').plot.scatter(x = 'TOF', y = 'Extinction', subplots = True, layout = (2, 3), figsize = (6, 6), sharex = False);
-
-
 
 
 op50 = copas[copas['Bacteria'] == 'OP50']
@@ -157,15 +160,25 @@ plt.show()
 
 
 # long version, but not relying on creating new variables
-fig, ax = plt.subplots(1, 3, sharex = 'col', sharey = 'row')
-ax[0].scatter(copas[copas['Bacteria'] == 'OP50']['TOF'], copas[copas['Bacteria'] == 'OP50']['Extinction'], c = 'b', alpha = 0.7)
-ax[0].set_title('OP50')
-ax[1].scatter(copas[copas['Bacteria'] == 'Myb181']['TOF'], copas[copas['Bacteria'] == 'Myb181']['Extinction'], c = 'r', alpha = 0.7)
-ax[1].set_title('Myb181')
-ax[2].scatter(copas[copas['Bacteria'] == 'Myb71']['TOF'],   copas[copas['Bacteria'] == 'Myb71']['Extinction'], c = 'k', alpha = 0.7)
-ax[2].set_title('Myb71')
+fig, ax = plt.subplots(2, 3, sharex = 'col', sharey = 'row')
+
+ax[0,0].scatter(copas[copas['Bacteria'] == 'OP50']['TOF'], copas[copas['Bacteria'] == 'OP50']['Extinction'], c = 'b', alpha = 0.7)
+ax[0,0].set_title('OP50')
+ax[0,1].scatter(copas[copas['Bacteria'] == 'Myb181']['TOF'], copas[copas['Bacteria'] == 'Myb181']['Extinction'], c = 'r', alpha = 0.7)
+ax[0,1].set_title('Myb181')
+ax[0,2].scatter(copas[copas['Bacteria'] == 'Myb71']['TOF'],   copas[copas['Bacteria'] == 'Myb71']['Extinction'], c = 'k', alpha = 0.7)
+ax[0,2].set_title('Myb71')
+fig.suptitle('COPAS data', fontsize = 16)
+
 plt.show()
 
+
+
+nrows = plot_nrow(copas, 'Bacteria')
+
+fig, ax = plt.subplots(nrows, 3, sharex = 'col', sharey = 'row')
+	for name in set(copas[str('Bacteria')]):
+		ax[0].scatter(copas[copas['Bacteria'] == name]['TOF'], copas[copas['Bacteria'] == name]['Extinction'], c = 'b', alpha = 0.7)
 
 
 
