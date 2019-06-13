@@ -7,13 +7,12 @@ Daniel Martinez, Jun - 2019
 '''
 
 
-
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import string
 import math
+import openpyxl
 from optparse import OptionParser
 
 
@@ -61,9 +60,6 @@ def plot_nrow(df, var):
 
 
 
-
-
-
 # Program Header
 print('\n====================================================\n')
 print(_scriptname + 'script, v' + __version__ , _verdata + 
@@ -77,7 +73,7 @@ print('\n====================================================\n')
 ### Design
 
 # reads excel file
-ds = pd.read_excel('Design.xlsx', sheet_name = 0, index_col = 0)
+ds = pd.read_excel(options.designfile, sheet_name = 0, index_col = 0)
 
 # create a dictionary of values
 ind = list(string.ascii_uppercase)[0:8]
@@ -87,30 +83,22 @@ ind = list(string.ascii_uppercase)[0:8]
 wells = dict()
 for index in ind:
 	for n in range(1,13):
-		if pd.isnull(ds[index][n]) == False:
-			wells[(str(index) + str(n))] = ds[index][n]
+		if pd.isnull(ds.loc[str(index), n]) == False:
+			wells[(str(index) + str(n))] = ds.loc[str(index), n]
 
 
 ### COPAS data
 
 # read input file
-copas = pd.read_csv('n2_1day_adult_9bacteria_1.txt', sep = "\t", header = 0)
-copas2 = pd.read_csv('ep2_1day_adult_9bacteria_1_1.txt', sep = "\t", header = 0)
+copas = pd.read_csv(options.inputfile, sep = "\t", header = 0)
+
 # remove rubish rows at the end of COPAS file
-# I should do it in a more robust way
+
 limit = copas.index[copas['Id'] == 'INSTRUMENT SETTINGS  HAVE BEEN MODIFIED DURING OR AFTER DATA ACQUISITION!'].tolist()
 copas = copas.iloc[:limit[0], :]
 
 # select columns to work
 copas = copas[['Id', 'Source well', 'TOF', 'Extinction']]
-
-#####
-## copas 2
-limit = copas2.index[copas2['Id'] == 'INSTRUMENT SETTINGS  HAVE BEEN MODIFIED DURING OR AFTER DATA ACQUISITION!'].tolist()
-copas2 = copas2.iloc[:limit[0], :]
-
-# select columns to work
-copas2 = copas2[['Id', 'Source well', 'TOF', 'Extinction']]
 
 
 # create a df from dict
@@ -121,67 +109,11 @@ wells_df['Bacteria'] = bact(wells_df) # creates an extra column with bacterial n
 
 # merge dfs
 copas = pd.merge(copas, wells_df, on = 'Source well', how = 'left')
-copas = copas[(copas['Extinction'] > 50) & (copas['TOF'] > 350)]
-
-# merge dfs
-copas2 = pd.merge(copas2, wells_df, on = 'Source well', how = 'left')
-copas2 = copas2[(copas2['Extinction'] > 50) & (copas2['TOF'] > 350)]
+# copas = copas[(copas['Extinction'] > 50) & (copas['TOF'] > 350)]
 
 
-
-
-###############
-## test zone ##
-############### 
-
-
-
-
-###
-# scatter plots
-# test
-
-
-op50 = copas[copas['Bacteria'] == 'OP50']
-Myb181 = copas[copas['Bacteria'] == 'Myb181']
-Myb71 = copas[copas['Bacteria'] == 'Myb71']
-
-
-elm = len(set(copas['Bacteria']))
-
-fig, ax = plt.subplots(1, 3, sharex='col', sharey='row')
-
-ax[0].scatter(op50['TOF'],	   op50['Extinction'], c = 'b', alpha = 0.7)
-ax[1].scatter(Myb181['TOF'], Myb181['Extinction'], c = 'r', alpha = 0.7)
-ax[2].scatter(Myb71['TOF'],   Myb71['Extinction'], c = 'k', alpha = 0.7)
-
-plt.show()
-
-
-
-# long version, but not relying on creating new variables
-fig, ax = plt.subplots(2, 3, sharex = 'col', sharey = 'row')
-
-ax[0,0].scatter(copas[copas['Bacteria'] == 'OP50']['TOF'], copas[copas['Bacteria'] == 'OP50']['Extinction'], c = 'b', alpha = 0.7)
-ax[0,0].set_title('OP50')
-ax[0,1].scatter(copas[copas['Bacteria'] == 'Myb181']['TOF'], copas[copas['Bacteria'] == 'Myb181']['Extinction'], c = 'r', alpha = 0.7)
-ax[0,1].set_title('Myb181')
-ax[0,2].scatter(copas[copas['Bacteria'] == 'Myb71']['TOF'],   copas[copas['Bacteria'] == 'Myb71']['Extinction'], c = 'k', alpha = 0.7)
-ax[0,2].set_title('Myb71')
-fig.suptitle('COPAS data', fontsize = 16)
-
-plt.show()
-
-
-
-nrows = plot_nrow(copas, 'Bacteria')
-
-fig, ax = plt.subplots(nrows, 3, sharex = 'col', sharey = 'row')
-	for name in set(copas[str('Bacteria')]):
-		ax[0].scatter(copas[copas['Bacteria'] == name]['TOF'], copas[copas['Bacteria'] == name]['Extinction'], c = 'b', alpha = 0.7)
-
-
-
+# save dataframe into an excel file
+copas.to_excel(options.outputfile, sheet_name = 'Summary', index = False)
 
 
 
