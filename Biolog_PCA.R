@@ -395,8 +395,8 @@ ht = Heatmap(heat.data,
 
 ha = HeatmapAnnotation(Classes = meta.list$Class,
     col = list(
-               Classes = c("alcohol" = "#0C5BB0FF", "carbohydrate" = "#16A08CFF", "carboxylic acid" = "#15983DFF",
-                      "amide" = '#EC579AFF', "polymer" = '#FA6B09FF', "amino acid" = '#149BEDFF', 
+               Classes = c("alcohol" = "#0C5BB0FF", "carbohydrate" = "#FA6B09FF", "carboxylic acid" = "#15983DFF",
+                      "amide" = '#EC579AFF', "polymer" = '#16A08CFF', "amino acid" = '#149BEDFF', 
                       "ester" = '#A1C720FF', "amine" = '#FEC10BFF', "fatty acid" = '#EE0011FF')
     ), which = "row"
 )
@@ -413,24 +413,67 @@ ht = Heatmap(heat.data,
 ht
 
 
-col_fun = colsel(9, palette = 'sat1')
-col_fun = yarrr::piratepal("basel")[1:9]
+# col_fun = colsel(9, palette = 'sat1')
+# col_fun = yarrr::piratepal("basel")[1:9]
 
 quartz.save(type = 'pdf', 
     file = here('analysis', 'Heatmap_all_classes.pdf'), 
-    width = 7, height = 15)
+    width = 7, height = 10)
 
 
+##############################
+### Heatmap, clean version ###
+##############################
+
+# filter by strain and Plate if you want
+heat.data = data.b %>%
+    filter(Metabolite != 'Negative Control') %>%
+    arrange(Class) %>%
+    select(Strain, MetaboliteU, AUC) %>%
+    spread(MetaboliteU, AUC) %>%
+    data.frame(check.names = F)
 
 
+# remove first column, and replace matrix row names with it
+rownames(heat.data) = heat.data[,1]
+heat.data[,1] = NULL
+
+# scale matrix with Z-scores
+heat.data = t(scale((heat.data), center = TRUE, scale = TRUE))
+
+# get Metabolite and Classes names, and arrange it by Class
+meta.list = data.b %>% filter(Strain == 'M131', Replicate == 1) %>%
+    filter(Metabolite != 'Negative Control') %>%
+    select(Metabolite, Class) %>%
+    arrange(Class)
+
+# arrange matrix
+heat.data = heat.data[meta.list$Metabolite,]
+
+# matrix annotation
+ha = HeatmapAnnotation(Classes = meta.list$Class,
+    col = list(
+               Classes = c("alcohol" = "#0C5BB0FF", "carbohydrate" = "#FA6B09FF", "carboxylic acid" = "#15983DFF",
+                      "amide" = '#EC579AFF', "polymer" = '#16A08CFF', "amino acid" = '#149BEDFF', 
+                      "ester" = '#A1C720FF', "amine" = '#FEC10BFF', "fatty acid" = '#EE0011FF')
+    ), which = "row"
+)
+# heatmap
+ht = Heatmap(heat.data, 
+        col = col_fun,
+        name = "Z-score",
+        column_title = "Bacterial strains",
+        row_title = "Biolog metabolites",
+        column_title_side = "bottom",
+        cluster_rows = FALSE,
+        row_names_gp = gpar(fontsize = 5), 
+        left_annotation = ha)
+ht
 
 
-
-
-
-
-
-
+quartz.save(type = 'pdf', 
+    file = here('analysis', 'Heatmap_all_classes.pdf'), 
+    width = 7, height = 10)
 
 
 
