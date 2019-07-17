@@ -33,22 +33,29 @@ dir.create('exploration', showWarnings = TRUE, recursive = FALSE, mode = "0777")
 
 n2_1 = read_xlsx(here('raw_data' ,'/061219/copas/n2_filt.xlsx'), sheet = 'Summary')
 n2_2 = read_xlsx(here('raw_data' ,'/061919/copas/n2_filt.xlsx'), sheet = 'Summary')
-n2_3 = read_xlsx(here('raw_data' ,'/062519/copas/n2_filt.xlsx'), sheet = 'Summary')
+# n2_3 = read_xlsx(here('raw_data' ,'/062519/copas/n2_filt.xlsx'), sheet = 'Summary')
 n2_4 = read_xlsx(here('raw_data' ,'/070219/copas/n2_filt.xlsx'), sheet = 'Summary')
+n2_5 = read_xlsx(here('raw_data' ,'/070919/n2_filt.xlsx'), sheet = 'Summary')
+n2_6 = read_xlsx(here('raw_data' ,'/071519/n2_filt.xlsx'), sheet = 'Summary')
+
 
 # ep2
 
 ep2_1 = read_xlsx(here('raw_data', '/061219/copas/ep2_filt.xlsx'), sheet = 'Summary')
 ep2_2 = read_xlsx(here('raw_data', '/061919/copas/ep2_filt.xlsx'), sheet = 'Summary')
-ep2_3 = read_xlsx(here('raw_data', '/062519/copas/ep2_filt.xlsx'), sheet = 'Summary')
+# ep2_3 = read_xlsx(here('raw_data', '/062519/copas/ep2_filt.xlsx'), sheet = 'Summary')
 ep2_4 = read_xlsx(here('raw_data', '/070219/copas/ep2_filt.xlsx'), sheet = 'Summary')
+ep2_5 = read_xlsx(here('raw_data', '/070919/ep2_filt.xlsx'), sheet = 'Summary')
+ep2_6 = read_xlsx(here('raw_data', '/071519/ep2_filt.xlsx'), sheet = 'Summary')
 
-n2_3 = n2_3 %>% filter(!Extinction > 750) %>%
- 	filter(!Extinction > 400 & TOF <1800) %>%
- 	filter(Bacteria %in% c('MG', 'Myb9', 'Myb131'))
 
-ep2_3 = ep2_3 %>%
-	filter(Bacteria %in% c('MG', 'Myb9', 'Myb131'))
+
+# n2_3 = n2_3 %>% filter(!Extinction > 750) %>%
+#  	filter(!Extinction > 400 & TOF <1800) %>%
+#  	filter(Bacteria %in% c('MG', 'Myb9', 'Myb131'))
+
+# ep2_3 = ep2_3 %>%
+# 	filter(Bacteria %in% c('MG', 'Myb9', 'Myb131'))
 
 
 # sample n2_3 is a bit dirty
@@ -63,13 +70,32 @@ ep2_3 = ep2_3 %>%
 # 	ggplot(aes(x = TOF, y = Extinction)) +
 # 	geom_point()
 
+#####################
+### cleaning data ###
+#####################
+
+
+# filter wells without bacteria in dataset number 6
+n2_6 = n2_6 %>% filter(!is.na(Bacteria))
+ep2_6 = ep2_6 %>% filter(!is.na(Bacteria))
+
+n2_6_M53 = n2_6 %>% filter(Bacteria == 'M53') %>% mutate(Bacteria = recode(Bacteria, 'M53' = 'Myb53'))
+ep2_6_M53 = ep2_6 %>% filter(Bacteria == 'M53')%>% mutate(Bacteria = recode(Bacteria, 'M53' = 'Myb53'))
+
+
+# it seems that I swaped M131 samples, so the N2 is in the ep2 dataset, and viceversa
+m131_n2 = ep2_5 %>% filter(Bacteria == 'Myb131')
+m131_ep2 = n2_5 %>% filter(Bacteria == 'Myb131')
+
+n2_5 = n2_5 %>% filter(!Bacteria == 'Myb131') %>% rbind(m131_n2)
+ep2_5 = ep2_5 %>% filter(!Bacteria == 'Myb131') %>% rbind(m131_ep2)
 
 
 
 # join them together as a long table
 
-n2 = rbind(n2_1, n2_2, n2_3, n2_4)
-ep2 = rbind(ep2_1, ep2_2, ep2_3, ep2_4)
+n2 = rbind(n2_1, n2_2, n2_4, n2_5, n2_6_M53)
+ep2 = rbind(ep2_1, ep2_2, ep2_4, ep2_5, ep2_6_M53)
 
 # filter by thresholds, might be useful to be less stringent with ep2
 
@@ -88,8 +114,8 @@ n2[n2$Bacteria %in% c('Mix', 'MixGCB', 'MixMarb', 'MixGCBMarb'),]$Group = 'Mix'
 ep2[ep2$Bacteria %in% c('Mix', 'MixGCB', 'MixMarb', 'MixGCBMarb'),]$Group = 'Mix'
 
 # establish Triplet groups
-n2[n2$Bacteria %in% c('GEOP50', 'GEMarb', 'GEM131', 'GEM71'),]$Group = 'Triplet'
-ep2[ep2$Bacteria %in% c('GEOP50', 'GEMarb', 'GEM131', 'GEM71'),]$Group = 'Triplet'
+n2[n2$Bacteria %in% c('GEOP50', 'GEMarb', 'GEM131', 'GEM71', 'GEM181', 'GEM9', 'GEMG'),]$Group = 'Triplet'
+ep2[ep2$Bacteria %in% c('GEOP50', 'GEMarb', 'GEM131', 'GEM71', 'GEM181', 'GEM9', 'GEMG'),]$Group = 'Triplet'
 
 
 # filter by dbscan method
@@ -242,8 +268,8 @@ p1 = db.n2 %>%
 	ggplot(aes(x = TOF, y = Extinction)) +
 	stat_density_2d(aes(fill = stat(nlevel)), geom = "polygon") +
 	facet_wrap(~Bacteria) +
-	# xlim(0, 3200) +
-	# ylim(0, 530) +
+	xlim(0, 3700) +
+	ylim(0, 560) +
 	scale_fill_viridis_c() +
 	theme_light()
 
@@ -253,8 +279,8 @@ p2 = db.ep2 %>%
 	stat_density_2d(aes(fill = stat(nlevel)), geom = "polygon") +
 	facet_wrap(~Bacteria) +
 	scale_fill_viridis_c() +
-	# xlim(0, 3200) +
-	# ylim(0, 530) +
+	xlim(0, 3700) +
+	ylim(0, 560) +
 	theme_light()
 
 
@@ -274,8 +300,8 @@ p1 = db.n2 %>%
 	ggplot(aes(x = TOF, y = Extinction)) +
 	stat_density_2d(aes(fill = stat(nlevel)), geom = "polygon") +
 	facet_wrap(~Bacteria) +
-	# xlim(0, 3200) +
-	# ylim(0, 530) +
+	xlim(0, 3700) +
+	ylim(0, 560) +
 	scale_fill_viridis_c() +
 	theme_light()
 
@@ -285,8 +311,8 @@ p2 = db.ep2 %>%
 	stat_density_2d(aes(fill = stat(nlevel)), geom = "polygon") +
 	facet_wrap(~Bacteria) +
 	scale_fill_viridis_c() +
-	# xlim(0, 3200) +
-	# ylim(0, 530) +
+	xlim(0, 3700) +
+	ylim(0, 560) +
 	theme_light()
 
 
@@ -305,8 +331,8 @@ p1 = db.n2 %>%
 	ggplot(aes(x = TOF, y = Extinction)) +
 	stat_density_2d(aes(fill = stat(nlevel)), geom = "polygon") +
 	facet_wrap(~Bacteria) +
-	# xlim(0, 3200) +
-	# ylim(0, 530) +
+	xlim(0, 3700) +
+	ylim(0, 560) +
 	scale_fill_viridis_c() +
 	theme_light()
 
@@ -316,8 +342,8 @@ p2 = db.ep2 %>%
 	stat_density_2d(aes(fill = stat(nlevel)), geom = "polygon") +
 	facet_wrap(~Bacteria) +
 	scale_fill_viridis_c() +
-	# xlim(0, 3200) +
-	# ylim(0, 530) +
+	xlim(0, 3700) +
+	ylim(0, 560) +
 	theme_light()
 
 
@@ -337,8 +363,8 @@ p1 = db.n2 %>%
 	ggplot(aes(x = TOF, y = Extinction)) +
 	stat_density_2d(aes(fill = stat(nlevel)), geom = "polygon") +
 	facet_wrap(~Bacteria) +
-	# xlim(0, 3200) +
-	# ylim(0, 530) +
+	xlim(0, 3700) +
+	ylim(0, 560) +
 	scale_fill_viridis_c() +
 	theme_light()
 
@@ -348,8 +374,8 @@ p2 = db.ep2 %>%
 	stat_density_2d(aes(fill = stat(nlevel)), geom = "polygon") +
 	facet_wrap(~Bacteria) +
 	scale_fill_viridis_c() +
-	# xlim(0, 3200) +
-	# ylim(0, 530) +
+	xlim(0, 3700) +
+	ylim(0, 560) +
 	theme_light()
 
 
@@ -438,6 +464,112 @@ quartz.save(file = here('exploration', '2d_density_join.pdf'),
 
 
 
+##################################
+### Scatter plots and barplots ###
+##################################
+
+# first of all, lets join both filtered datasets, and modify them to add more variables
+# of interest: bio replicates, technical replicates, worm type...
+
+db.n2['Worm'] = 'N2'
+db.ep2['Worm'] = 'ep2'
+
+copas = rbind(db.n2, db.ep2) %>% filter(group != 0) %>% select(-group)
+
+
+# in single colonies, bacteria Myb27, Myb45, Myb53 and Myb71 lack data from ep2
+# manually filtering them, not the best solution but it will have to work either way
+
+m27 = ep2_1 %>% filter(Bacteria =='Myb27', Extinction > 10, TOF > 200)
+m45 = ep2_1 %>% filter(Bacteria =='Myb45', Extinction > 10, TOF > 200) %>% filter(Extinction < 40, TOF < 700)
+m53 = ep2_1 %>% filter(Bacteria =='Myb53', Extinction > 10, TOF > 200) %>% filter(Extinction < 50, TOF < 800)
+m71 = ep2_2 %>% filter(Bacteria =='Myb71', Extinction > 10, TOF > 200, `Source well` %in% c('D9', 'E9', 'F9', 'D10', 'E10', 'F10')) %>%
+	filter(Extinction < 50, TOF < 700)
+
+m27['Group'] = 'Single'; m27['Worm'] = 'ep2'
+m45['Group'] = 'Single'; m45['Worm'] = 'ep2'
+m53['Group'] = 'Single'; m53['Worm'] = 'ep2'
+m71['Group'] = 'Single'; m71['Worm'] = 'ep2'
+
+copas = rbind(copas, m27, m45, m53, m71)
+# lets make variables for the technical and biological replicates
+# stupid loop, do it once
+
+copas['biorep'] = 0
+copas['techrep'] = 0
+for (i in 1:dim(copas)[1]){
+	copas$biorep[i] = as.integer(tail(strsplit(copas$Sample[i], '_')[[1]],2)[1])
+	copas$techrep[i] = as.integer(tail(strsplit(copas$Sample[i], '_')[[1]],2)[2])
+}
+
+# copas = copas %>% filter(Sample != 'GCB_2_2')
+
+# summarise data
+copas.sum = copas %>%
+	group_by(Worm, Group, Bacteria, Sample, biorep, techrep) %>%
+	summarise(TOF_mean = mean(TOF),
+			  TOF_sd = sd(TOF),
+			  TOF_SEM = TOF_sd/sqrt(n()),
+			  Ext_mean = mean(Extinction),
+			  Ext_sd = sd(Extinction),
+			  Ext_SEM = Ext_sd/sqrt(n())) %>%
+	group_by(Worm, Group, Bacteria) %>%					# this is for weighted means and sd
+	mutate(wTOF = 1/(TOF_sd**2),
+		   wExt = 1/(Ext_sd**2),
+		   wTOF_norm = wTOF/(sum(1/(TOF_sd**2))),
+		   wExt_norm = wExt/(sum(1/(Ext_sd**2))))
+
+
+# calculate means and sd (weighted and unweighted) of means
+
+copas.sum2 = copas.sum %>%
+	group_by(Worm, Group, Bacteria) %>%
+	summarise(wTOF_mean = wt.mean(TOF_mean, wTOF),
+			  wTOF_SD = wt.sd(TOF_mean, wTOF),
+			  wExt_mean = wt.mean(Ext_mean, wExt),
+			  wExt_SD = wt.sd(Ext_mean, wExt))
+
+
+
+
+# barplot with points and error
+
+gr = 'Triplet'
+p1 = copas.sum2 %>% 
+	filter(Group == gr) %>%
+	ggplot(aes(x = Bacteria, y = wTOF_mean, colour = Worm, group = Worm)) +
+	geom_errorbar(aes(ymin = wTOF_mean - wTOF_SD, ymax = wTOF_mean + wTOF_SD), position = position_dodge(0.9), width = 0.1) +
+	geom_bar(aes(fill = Worm), stat = 'identity', position = position_dodge(), alpha = 0.1) +
+	geom_point(data = copas.sum %>% filter(Group == gr), 
+		aes(x = Bacteria, y = TOF_mean), position = position_jitterdodge(dodge.width = 1, jitter.width = 0.3), alpha = 0.8) +
+	scale_color_manual(values = c('#0000FEFF', '#107F01FF')) +
+	scale_fill_manual(values = c('#0000FEFF', '#107F01FF')) +
+	labs(x = 'Bacteria',
+		y = 'TOF') +
+ 	scale_y_continuous(expand = expand_scale(mult = c(0, .1))) + # removes the spaces at the bottom of the barplot
+	theme_classic()
+
+p2 = copas.sum2 %>% 
+	filter(Group == gr) %>%
+	ggplot(aes(x = Bacteria, y = wExt_mean, colour = Worm, group = Worm)) +
+	geom_errorbar(aes(ymin = wExt_mean - wExt_SD, ymax = wExt_mean + wExt_SD), position = position_dodge(0.9), width = 0.1) +
+	geom_bar(aes(fill = Worm), stat = 'identity', position = position_dodge(), alpha = 0.1) +
+	geom_point(data = copas.sum %>% filter(Group == gr), 
+		aes(x = Bacteria, y = Ext_mean), position = position_jitterdodge(dodge.width = 1, jitter.width = 0.3), alpha = 0.8) +
+	scale_color_manual(values = c('#0000FEFF', '#107F01FF')) +
+	scale_fill_manual(values = c('#0000FEFF', '#107F01FF')) +
+	labs(x = 'Bacteria',
+		y = 'TOF') +
+	scale_y_continuous(expand = expand_scale(mult = c(0, .1))) +
+	theme_classic()
+
+ggarrange(p1, p2,
+          labels = c("TOF", "Extinction"),
+          ncol = 1, nrow = 2)
+
+
+quartz.save(file = here('exploration', 'barplot_means_Triplet.pdf'),
+	type = 'pdf', dpi = 300, height = 10, width = 9)
 
 
 
@@ -466,47 +598,6 @@ quartz.save(file = here('exploration', '2d_density_join.pdf'),
 
 
 
-
-
-
-
-
-
-
-
-# ####
-# #### For presentation
-# ####
-
-
-# p1 = db.n2 %>% 
-# 	filter(group != 0, Bacteria %in% c('OP50', 'GCB') ) %>%
-# 	ggplot(aes(x = TOF, y = Extinction)) +
-# 	stat_density_2d(aes(fill = stat(nlevel)), geom = "polygon") +
-# 	facet_wrap(~Bacteria) +
-# 	xlim(0, 3500) +
-# 	ylim(0, 500) +
-# 	scale_fill_viridis_c() +
-# 	theme_light()
-
-# p2 = db.ep2 %>% 
-# 	filter(group != 0, Bacteria %in% c('OP50', 'GCB'),
-# 		TOF > 300, Extinction > 50 ) %>%
-# 	ggplot(aes(x = TOF, y = Extinction)) +
-# 	stat_density_2d(aes(fill = stat(nlevel)), geom = "polygon") +
-# 	facet_wrap(~Bacteria) +
-# 	scale_fill_viridis_c() +
-# 	xlim(0, 3500) +
-# 	ylim(0, 400) +
-# 	theme_light()
-
-
-# ggarrange(p1, p2, 
-#           labels = c("N2", "ep2"),
-#           ncol = 1, nrow = 2)
-
-# quartz.save(file = here('summary', 'presentation_plot.pdf'),
-# 	type = 'pdf', dpi = 300, height = 8, width = 8)
 
 
 
