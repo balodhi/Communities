@@ -9,6 +9,7 @@ library(SDMTools) # for weighted statistics
 library(ggpubr)
 library(dbscan)
 library(ggnewscale)
+library(openxlsx)
 library(here)
 
 # main path
@@ -507,7 +508,9 @@ m71['Group'] = 'Single'; m71['Worm'] = 'ep2'
 
 copas = rbind(copas, m27, m45, m53, m71)
 
+## and now, a silly movement: we are dropping m27 and m45 from the analysis
 
+copas = copas %>% filter(!Bacteria %in% c('Myb27', 'Myb45')) %>% filter(!Sample %in% c('GCB_2_2'))
 
 
 # lets make variables for the technical and biological replicates
@@ -520,7 +523,14 @@ for (i in 1:dim(copas)[1]){
 	copas$techrep[i] = as.integer(tail(strsplit(copas$Sample[i], '_')[[1]],2)[2])
 }
 
-# copas = copas %>% filter(Sample != 'GCB_2_2')
+copas = copas %>% 
+	select(Worm, Group, Bacteria, Sample, biorep, techrep, TOF, Extinction) %>%
+	mutate(Worm = fct_relevel(Worm, 'N2', 'ep2'))
+# save raw data into a file
+list_of_datasets = list('copas' = copas)
+write.xlsx(list_of_datasets, here('analysis', 'original_data.xlsx'), colNames = T, rowNames = F) 
+
+
 
 # summarise data
 copas.sum = copas %>%
@@ -574,20 +584,33 @@ ANOVAreplication::pooled.sd(dummy)
 #
 # So, lets join the SD with copas.sum2
 
-copas.sum2 = copas.sum2 %>% left_join(copas.sum3)
+copas.sum2 = copas.sum2 %>% left_join(copas.sum3) 
 
-# barplot with points and error
 
-gr = 'Triplet'
+# save summary statistics into a file
+list_of_datasets = list('summary_by_sample' = copas.sum, 'summary_by_bacteria' = copas.sum2)
+write.xlsx(list_of_datasets, here('analysis', 'sum_stats.xlsx'), colNames = T, rowNames = F) 
+
+
+
+########################
+# barplot with points and errorbars
+
+# Single populations
+
+gr = 'Single'
+lvls = c('GCB', 'OP50', '2783', 'Marburg', 'MG', 'Myb131', 'Myb181', 'Myb9', 'Myb71', 'Myb53') # order in which the factors will appear in the plot
 p1 = copas.sum2 %>% 
 	filter(Group == gr) %>%
+	mutate(Bacteria = factor(Bacteria, levels = lvls)) %>%
 	ggplot(aes(x = Bacteria, y = wTOF_mean, colour = Worm, group = Worm)) +
-	geom_bar(aes(fill = Worm), stat = 'identity', position = position_dodge(), alpha = 0.6) +
-	geom_point(data = copas %>% filter(Group == gr), 
-		aes(x = Bacteria, y = TOF), position = position_jitterdodge(dodge.width = 1, jitter.width = 0.3), alpha = 0.1, size = 0.2) +
-	geom_errorbar(aes(ymin = wTOF_mean - TOF_sd, ymax = wTOF_mean + TOF_sd), position = position_dodge(0.9), width = 0.1, colour = 'gray30') +
-	scale_color_manual(values = c('#225BB8', '#B3811B')) +
-	scale_fill_manual(values = c('#225BB8', '#B3811B')) +
+	geom_bar(aes(fill = Worm), stat = 'identity', color = 'black', position = position_dodge(), alpha = 0.7) +
+	geom_point(data = copas.sum %>% filter(Group == gr), 
+		aes(x = Bacteria, y = TOF_mean, fill = Worm), position = position_jitterdodge(jitter.width = 0.3), alpha = 0.99, size = 1, colour = 'gray10') +
+	geom_errorbar(aes(ymin = wTOF_mean - wTOF_SD, ymax = wTOF_mean + wTOF_SD), position = position_dodge(0.9), width = 0.1, colour = 'gray20') +
+	scale_fill_OkabeIto() +
+	# scale_color_manual(values = c('#8C5400', '#D68000')) +
+	# scale_fill_manual(values = c('#8C5400', '#D68000')) +
 	labs(x = 'Bacteria',
 		y = 'TOF') +
  	scale_y_continuous(expand = expand_scale(mult = c(0, .1))) + # removes the spaces at the bottom of the barplot
@@ -595,30 +618,196 @@ p1 = copas.sum2 %>%
 
 p2 = copas.sum2 %>% 
 	filter(Group == gr) %>%
+	mutate(Bacteria = factor(Bacteria, levels = lvls)) %>%
 	ggplot(aes(x = Bacteria, y = wExt_mean, colour = Worm, group = Worm)) +
-	geom_bar(aes(fill = Worm), stat = 'identity', position = position_dodge(), alpha = 0.6) +
-	geom_point(data = copas %>% filter(Group == gr), 
-		aes(x = Bacteria, y = Extinction), position = position_jitterdodge(dodge.width = 1, jitter.width = 0.3), alpha = 0.1, size = 0.2) +
-	geom_errorbar(aes(ymin = wExt_mean - Ext_sd, ymax = wExt_mean + Ext_sd), position = position_dodge(0.9), width = 0.1, colour = 'gray30') +
-	scale_color_manual(values = c('#225BB8', '#B3811B')) +
-	scale_fill_manual(values = c('#225BB8', '#B3811B')) +
+	geom_bar(aes(fill = Worm), stat = 'identity', color = 'black', position = position_dodge(), alpha = 0.7) +
+	geom_point(data = copas.sum %>% filter(Group == gr), 
+		aes(x = Bacteria, y = Ext_mean, fill = Worm), position = position_jitterdodge(jitter.width = 0.3), alpha = 0.99, size = 1, colour = 'gray10') +
+	geom_errorbar(aes(ymin = wExt_mean - wExt_SD, ymax = wExt_mean + wExt_SD), position = position_dodge(0.9), width = 0.1, colour = 'gray20') +
+	scale_fill_OkabeIto() +
+	# scale_color_manual(values = c('#FF260A', '#0656CC')) +
+	# scale_fill_manual(values = c('#FF260A', '#0656CC')) +
 	labs(x = 'Bacteria',
-		y = 'TOF') +
+		y = 'Extinction') +
 	scale_y_continuous(expand = expand_scale(mult = c(0, .1))) +
 	theme_classic()
 
 ggarrange(p1, p2,
-          labels = c("TOF", "Extinction"),
+          labels = c("TOF", "Ext"),
           ncol = 1, nrow = 2)
 
 
-quartz.save(file = here('exploration', 'barplot_population_Triplet.pdf'),
+quartz.save(file = here('exploration', paste0('barplot_means_',gr,'.pdf')),
 	type = 'pdf', dpi = 300, height = 10, width = 9)
 
 
 
+# GCB mixes
+
+temp.sum2 = copas.sum2 %>% 
+	filter(Group == gr) %>%
+	rbind(copas.sum2 %>% filter(Group == 'Single', Bacteria == 'GCB'))
+temp.sum = copas.sum %>%
+	filter(Group == gr) %>%
+	rbind(copas.sum %>% filter(Group == 'Single', Bacteria == 'GCB'))
+
+gr = 'GCB'
+lvls = c('GCB', 'OP50', '2783', 'Marburg', 'MG', 'Myb131', 'Myb181', 'Myb9', 'Myb71', 'Myb53') # order in which the factors will appear in the plot
+p1 = temp.sum2 %>% 
+	mutate(Bacteria = factor(Bacteria, levels = lvls)) %>%
+	ggplot(aes(x = Bacteria, y = wTOF_mean, colour = Worm, group = Worm)) +
+	geom_bar(aes(fill = Worm), stat = 'identity', color = 'black', position = position_dodge(), alpha = 0.7) +
+	geom_point(data = temp.sum , 
+		aes(x = Bacteria, y = TOF_mean, fill = Worm), position = position_jitterdodge(jitter.width = 0.3), alpha = 0.99, size = 1, colour = 'gray10') +
+	geom_errorbar(aes(ymin = wTOF_mean - wTOF_SD, ymax = wTOF_mean + wTOF_SD), position = position_dodge(0.9), width = 0.1, colour = 'gray20') +
+	scale_fill_OkabeIto() +
+	# scale_color_manual(values = c('#8C5400', '#D68000')) +
+	# scale_fill_manual(values = c('#8C5400', '#D68000')) +
+	labs(x = 'Bacteria',
+		y = 'TOF') +
+	geom_vline(xintercept = 1.5, size = 0.8) + # adds a vertical line to separate control GCB from the other comparisons
+	annotate('text', x = 1, y = 2200, label = 'Control') +
+ 	scale_y_continuous(expand = expand_scale(mult = c(0, .1))) + # removes the spaces at the bottom of the barplot
+	theme_classic()
+
+p2 = temp.sum2 %>% 
+	mutate(Bacteria = factor(Bacteria, levels = lvls)) %>%
+	ggplot(aes(x = Bacteria, y = wExt_mean, colour = Worm, group = Worm)) +
+	geom_bar(aes(fill = Worm), stat = 'identity', color = 'black', position = position_dodge(), alpha = 0.7) +
+	geom_point(data = temp.sum, 
+		aes(x = Bacteria, y = Ext_mean, fill = Worm), position = position_jitterdodge(jitter.width = 0.3), alpha = 0.99, size = 1, colour = 'gray10') +
+	geom_errorbar(aes(ymin = wExt_mean - wExt_SD, ymax = wExt_mean + wExt_SD), position = position_dodge(0.9), width = 0.1, colour = 'gray20') +
+	scale_fill_OkabeIto() +
+	# scale_color_manual(values = c('#FF260A', '#0656CC')) +
+	# scale_fill_manual(values = c('#FF260A', '#0656CC')) +
+	labs(x = 'Bacteria',
+		y = 'Extinction') +
+	geom_vline(xintercept = 1.5, size = 0.8) + # adds a vertical line to separate control GCB from the other comparisons
+	annotate('text', x = 1, y = 350, label = 'Control') +
+	scale_y_continuous(expand = expand_scale(mult = c(0, .1))) +
+	theme_classic()
+
+ggarrange(p1, p2,
+          labels = c("TOF", "Ext"),
+          ncol = 1, nrow = 2)
+
+
+quartz.save(file = here('exploration', paste0('barplot_means_',gr,'.pdf')),
+	type = 'pdf', dpi = 300, height = 10, width = 9)
+
+
+# All bacteria mixes
+
+gr = 'Mix'
+temp.sum2 = copas.sum2 %>% 
+	filter(Group == gr) %>%
+	rbind(copas.sum2 %>% filter(Group == 'Single', Bacteria == 'GCB'))
+temp.sum = copas.sum %>%
+	filter(Group == gr) %>%
+	rbind(copas.sum %>% filter(Group == 'Single', Bacteria == 'GCB'))
+
+lvls = c('GCB', 'Mix', 'MixGCB', 'MixMarb', 'MixGCBMarb') # order in which the factors will appear in the plot
+
+p1 = temp.sum2 %>% 
+	mutate(Bacteria = factor(Bacteria, levels = lvls)) %>%
+	ggplot(aes(x = Bacteria, y = wTOF_mean, colour = Worm, group = Worm)) +
+	geom_bar(aes(fill = Worm), stat = 'identity', color = 'black', position = position_dodge(), alpha = 0.7) +
+	geom_point(data = temp.sum , 
+		aes(x = Bacteria, y = TOF_mean, fill = Worm), position = position_jitterdodge(jitter.width = 0.3), alpha = 0.99, size = 1, colour = 'gray10') +
+	geom_errorbar(aes(ymin = wTOF_mean - wTOF_SD, ymax = wTOF_mean + wTOF_SD), position = position_dodge(0.9), width = 0.1, colour = 'gray20') +
+	scale_fill_OkabeIto() +
+	# scale_color_manual(values = c('#8C5400', '#D68000')) +
+	# scale_fill_manual(values = c('#8C5400', '#D68000')) +
+	labs(x = 'Bacteria',
+		y = 'TOF') +
+	geom_vline(xintercept = 1.5, size = 0.8) + # adds a vertical line to separate control GCB from the other comparisons
+	annotate('text', x = 1, y = 2200, label = 'Control') +
+ 	scale_y_continuous(expand = expand_scale(mult = c(0, .1))) + # removes the spaces at the bottom of the barplot
+	theme_classic()
+
+p2 = temp.sum2 %>% 
+	mutate(Bacteria = factor(Bacteria, levels = lvls)) %>%
+	ggplot(aes(x = Bacteria, y = wExt_mean, colour = Worm, group = Worm)) +
+	geom_bar(aes(fill = Worm), stat = 'identity', color = 'black', position = position_dodge(), alpha = 0.7) +
+	geom_point(data = temp.sum, 
+		aes(x = Bacteria, y = Ext_mean, fill = Worm), position = position_jitterdodge(jitter.width = 0.3), alpha = 0.99, size = 1, colour = 'gray10') +
+	geom_errorbar(aes(ymin = wExt_mean - wExt_SD, ymax = wExt_mean + wExt_SD), position = position_dodge(0.9), width = 0.1, colour = 'gray20') +
+	scale_fill_OkabeIto() +
+	# scale_color_manual(values = c('#FF260A', '#0656CC')) +
+	# scale_fill_manual(values = c('#FF260A', '#0656CC')) +
+	labs(x = 'Bacteria',
+		y = 'Extinction') +
+	geom_vline(xintercept = 1.5, size = 0.8) + # adds a vertical line to separate control GCB from the other comparisons
+	annotate('text', x = 1, y = 350, label = 'Control') +
+	scale_y_continuous(expand = expand_scale(mult = c(0, .1))) +
+	theme_classic()
+
+ggarrange(p1, p2,
+          labels = c("TOF", "Ext"),
+          ncol = 1, nrow = 2)
+
+
+quartz.save(file = here('exploration', paste0('barplot_means_',gr,'.pdf')),
+	type = 'pdf', dpi = 300, height = 10, width = 9)
+
+# Triplets
+
+gr = 'Triplet'
+temp.sum2 = copas.sum2 %>% 
+	filter(Group == gr) %>%
+	rbind(copas.sum2 %>% filter(Group == 'Single', Bacteria == 'GCB'))
+temp.sum = copas.sum %>%
+	filter(Group == gr) %>%
+	rbind(copas.sum %>% filter(Group == 'Single', Bacteria == 'GCB'))
+
+lvls = c('GCB', 'GEM131', 'GEM9', 'GEM71', 'GEMarb', 'GEOP50', 'GEMG', 'GEM181') # order in which the factors will appear in the plot
+
+p1 = temp.sum2 %>% 
+	mutate(Bacteria = factor(Bacteria, levels = lvls)) %>%
+	ggplot(aes(x = Bacteria, y = wTOF_mean, colour = Worm, group = Worm)) +
+	geom_bar(aes(fill = Worm), stat = 'identity', color = 'black', position = position_dodge(), alpha = 0.7) +
+	geom_point(data = temp.sum , 
+		aes(x = Bacteria, y = TOF_mean, fill = Worm), position = position_jitterdodge(jitter.width = 0.3), alpha = 0.99, size = 1, colour = 'gray10') +
+	geom_errorbar(aes(ymin = wTOF_mean - wTOF_SD, ymax = wTOF_mean + wTOF_SD), position = position_dodge(0.9), width = 0.1, colour = 'gray20') +
+	scale_fill_OkabeIto() +
+	# scale_color_manual(values = c('#8C5400', '#D68000')) +
+	# scale_fill_manual(values = c('#8C5400', '#D68000')) +
+	labs(x = 'Bacteria',
+		y = 'TOF') +
+	geom_vline(xintercept = 1.5, size = 0.8) + # adds a vertical line to separate control GCB from the other comparisons
+	annotate('text', x = 1, y = 2200, label = 'Control') +
+ 	scale_y_continuous(expand = expand_scale(mult = c(0, .1))) + # removes the spaces at the bottom of the barplot
+	theme_classic()
+
+p2 = temp.sum2 %>% 
+	mutate(Bacteria = factor(Bacteria, levels = lvls)) %>%
+	ggplot(aes(x = Bacteria, y = wExt_mean, colour = Worm, group = Worm)) +
+	geom_bar(aes(fill = Worm), stat = 'identity', color = 'black', position = position_dodge(), alpha = 0.7) +
+	geom_point(data = temp.sum, 
+		aes(x = Bacteria, y = Ext_mean, fill = Worm), position = position_jitterdodge(jitter.width = 0.3), alpha = 0.99, size = 1, colour = 'gray10') +
+	geom_errorbar(aes(ymin = wExt_mean - wExt_SD, ymax = wExt_mean + wExt_SD), position = position_dodge(0.9), width = 0.1, colour = 'gray20') +
+	scale_fill_OkabeIto() +
+	# scale_color_manual(values = c('#FF260A', '#0656CC')) +
+	# scale_fill_manual(values = c('#FF260A', '#0656CC')) +
+	labs(x = 'Bacteria',
+		y = 'Extinction') +
+	geom_vline(xintercept = 1.5, size = 0.8) + # adds a vertical line to separate control GCB from the other comparisons
+	annotate('text', x = 1, y = 350, label = 'Control') +
+	scale_y_continuous(expand = expand_scale(mult = c(0, .1))) +
+	theme_classic()
+
+ggarrange(p1, p2,
+          labels = c("TOF", "Ext"),
+          ncol = 1, nrow = 2)
+
+
+quartz.save(file = here('exploration', paste0('barplot_means_',gr,'.pdf')),
+	type = 'pdf', dpi = 300, height = 10, width = 9)
+
+
 
 ###### 
+
 
 # lets calculate what is the difference between ep2 and n2, that could be helpful
 # for clarification:
