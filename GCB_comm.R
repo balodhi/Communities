@@ -27,6 +27,26 @@ dir.create('analysis', showWarnings = TRUE, recursive = FALSE, mode = "0777")
 dir.create('exploration', showWarnings = TRUE, recursive = FALSE, mode = "0777")
 
 
+
+###
+# user defined functions
+
+# get ellipses based on the correlation
+getellipse = function(x, y, sc = 1) {
+  as.data.frame(ellipse::ellipse(cor(x, y),
+                                  scale = c(sd(x) * sc, sd(y) * sc),
+                                  centre = c(mean(x), mean(y))))
+}
+
+# function to extract clusters from DBSCAN
+dbclust = function(data, eps = 200, minPts = 15) {
+	db = dbscan(data, eps = eps, minPts = minPts)
+	return(db$cluster)
+}
+
+
+
+
 ### read files from raw_data
 
 # N2
@@ -129,12 +149,6 @@ ep2[ep2$Bacteria %in% c('GEOP50', 'GEMarb', 'GEM131', 'GEM71', 'GEM181', 'GEM9',
 # fviz_cluster(db, df, stand = FALSE, frame = FALSE, geom = "point")
 
 
-
-# function to extract clusters from DBSCAN
-dbclust = function(data, eps = 200, minPts = 15) {
-	db = dbscan(data, eps = eps, minPts = minPts)
-	return(db$cluster)
-}
 
 
 # this loop code will calculate all the 
@@ -492,6 +506,10 @@ m53['Group'] = 'Single'; m53['Worm'] = 'ep2'
 m71['Group'] = 'Single'; m71['Worm'] = 'ep2'
 
 copas = rbind(copas, m27, m45, m53, m71)
+
+
+
+
 # lets make variables for the technical and biological replicates
 # stupid loop, do it once
 
@@ -515,9 +533,8 @@ copas.sum = copas %>%
 			  Ext_SEM = Ext_sd/sqrt(n())) %>%
 	group_by(Worm, Group, Bacteria) %>%					# this is for weighted means and sd
 	mutate(wTOF = 1/(TOF_sd**2),
-		   wExt = 1/(Ext_sd**2),
-		   wTOF_norm = wTOF/(sum(1/(TOF_sd**2))),
-		   wExt_norm = wExt/(sum(1/(Ext_sd**2))))
+		   wExt = 1/(Ext_sd**2)
+		   )
 
 
 # calculate means and sd (weighted and unweighted) of means
@@ -527,10 +544,37 @@ copas.sum2 = copas.sum %>%
 	summarise(wTOF_mean = wt.mean(TOF_mean, wTOF),
 			  wTOF_SD = wt.sd(TOF_mean, wTOF),
 			  wExt_mean = wt.mean(Ext_mean, wExt),
-			  wExt_SD = wt.sd(Ext_mean, wExt))
+			  wExt_SD = wt.sd(Ext_mean, wExt)) %>%
+	ungroup
 
 
+########################################################
+### quick check that pooled sd are quite similar to normal SD
 
+copas.sum3 = copas %>%
+	group_by(Worm, Group, Bacteria) %>%
+	summarise(TOF_mean = mean(TOF),
+			  TOF_sd = sd(TOF),
+			  Ext_mean = mean(Extinction),
+			  Ext_sd = sd(Extinction)) %>%
+	ungroup
+
+dummy = copas %>% filter(Worm == 'ep2', Group == 'GCB', Bacteria == '2783') %>% select(TOF, Sample)
+data = data.frame(y = ChickWeight$weight, g = ChickWeight$Diet)
+ANOVAreplication::pooled.sd(dummy)
+
+########################################################
+
+
+# what I was representing before (wTOF_mean and wTOF_SD) is the MEAN and the SEM, but
+# I think it will be more helpful to see the standard deviation of the samples rather
+# than the standard error of the mean. But, take into account that the pooled sd could
+# be a better indicator of the true variation of our samples (which will be kind of 
+# similar, I believe)
+#
+# So, lets join the SD with copas.sum2
+
+copas.sum2 = copas.sum2 %>% left_join(copas.sum3)
 
 # barplot with points and error
 
@@ -538,12 +582,12 @@ gr = 'Triplet'
 p1 = copas.sum2 %>% 
 	filter(Group == gr) %>%
 	ggplot(aes(x = Bacteria, y = wTOF_mean, colour = Worm, group = Worm)) +
-	geom_errorbar(aes(ymin = wTOF_mean - wTOF_SD, ymax = wTOF_mean + wTOF_SD), position = position_dodge(0.9), width = 0.1) +
-	geom_bar(aes(fill = Worm), stat = 'identity', position = position_dodge(), alpha = 0.1) +
-	geom_point(data = copas.sum %>% filter(Group == gr), 
-		aes(x = Bacteria, y = TOF_mean), position = position_jitterdodge(dodge.width = 1, jitter.width = 0.3), alpha = 0.8) +
-	scale_color_manual(values = c('#0000FEFF', '#107F01FF')) +
-	scale_fill_manual(values = c('#0000FEFF', '#107F01FF')) +
+	geom_bar(aes(fill = Worm), stat = 'identity', position = position_dodge(), alpha = 0.6) +
+	geom_point(data = copas %>% filter(Group == gr), 
+		aes(x = Bacteria, y = TOF), position = position_jitterdodge(dodge.width = 1, jitter.width = 0.3), alpha = 0.1, size = 0.2) +
+	geom_errorbar(aes(ymin = wTOF_mean - TOF_sd, ymax = wTOF_mean + TOF_sd), position = position_dodge(0.9), width = 0.1, colour = 'gray30') +
+	scale_color_manual(values = c('#225BB8', '#B3811B')) +
+	scale_fill_manual(values = c('#225BB8', '#B3811B')) +
 	labs(x = 'Bacteria',
 		y = 'TOF') +
  	scale_y_continuous(expand = expand_scale(mult = c(0, .1))) + # removes the spaces at the bottom of the barplot
@@ -552,12 +596,12 @@ p1 = copas.sum2 %>%
 p2 = copas.sum2 %>% 
 	filter(Group == gr) %>%
 	ggplot(aes(x = Bacteria, y = wExt_mean, colour = Worm, group = Worm)) +
-	geom_errorbar(aes(ymin = wExt_mean - wExt_SD, ymax = wExt_mean + wExt_SD), position = position_dodge(0.9), width = 0.1) +
-	geom_bar(aes(fill = Worm), stat = 'identity', position = position_dodge(), alpha = 0.1) +
-	geom_point(data = copas.sum %>% filter(Group == gr), 
-		aes(x = Bacteria, y = Ext_mean), position = position_jitterdodge(dodge.width = 1, jitter.width = 0.3), alpha = 0.8) +
-	scale_color_manual(values = c('#0000FEFF', '#107F01FF')) +
-	scale_fill_manual(values = c('#0000FEFF', '#107F01FF')) +
+	geom_bar(aes(fill = Worm), stat = 'identity', position = position_dodge(), alpha = 0.6) +
+	geom_point(data = copas %>% filter(Group == gr), 
+		aes(x = Bacteria, y = Extinction), position = position_jitterdodge(dodge.width = 1, jitter.width = 0.3), alpha = 0.1, size = 0.2) +
+	geom_errorbar(aes(ymin = wExt_mean - Ext_sd, ymax = wExt_mean + Ext_sd), position = position_dodge(0.9), width = 0.1, colour = 'gray30') +
+	scale_color_manual(values = c('#225BB8', '#B3811B')) +
+	scale_fill_manual(values = c('#225BB8', '#B3811B')) +
 	labs(x = 'Bacteria',
 		y = 'TOF') +
 	scale_y_continuous(expand = expand_scale(mult = c(0, .1))) +
@@ -568,36 +612,165 @@ ggarrange(p1, p2,
           ncol = 1, nrow = 2)
 
 
-quartz.save(file = here('exploration', 'barplot_means_Triplet.pdf'),
+quartz.save(file = here('exploration', 'barplot_population_Triplet.pdf'),
 	type = 'pdf', dpi = 300, height = 10, width = 9)
 
 
 
 
+###### 
+
+# lets calculate what is the difference between ep2 and n2, that could be helpful
+# for clarification:
+# 	TOF_dif is the difference between N2 and ep2 values
+# 	TOF_score is the N2 value divided by the TOF_dif
+# we are interested in see which bacteria confer a better recovery from the
+# wild phenotype, but also to correct against worms not well developed
+
+dif.sum = copas.sum %>% 
+	left_join(copas.sum2 %>% filter(Worm == 'N2') %>% ungroup %>% select(-Worm)) %>% 
+	select(-biorep, -techrep, -wTOF, -wExt, -wTOF_SD, -wExt_SD) %>%
+	rename(wTOF_N2 = wTOF_mean,
+		   wExt_N2 = wExt_mean) %>%
+	mutate(TOF_dif = wTOF_N2 - TOF_mean,
+		   Ext_dif = wExt_N2 - Ext_mean,
+		   TOF_score = wTOF_N2/TOF_dif,
+		   Ext_score = wExt_N2/Ext_dif) %>%
+	filter(Worm == 'ep2') %>%
+	ungroup %>%
+	select(-Worm)
+
+
+# scatter plot of the scores
+
+gr = 'Mix'
+
+ell = dif.sum %>%
+	filter(Group == gr,!Bacteria %in% c('Myb27', 'Myb45')) %>%
+	group_by(Bacteria) %>% 
+	do(getellipse(.$TOF_score, .$Ext_score, 1)) %>% 
+	data.frame
+
+dif.sum %>%
+	filter(Group == gr, !Bacteria %in% c('Myb27', 'Myb45')) %>%
+	ggplot(aes(x = TOF_score, y = Ext_score)) +
+	geom_point(aes(colour = Bacteria), size = 5) +
+	geom_path(data = ell, aes(x = x, y = y, colour = Bacteria), size = 1) +
+	geom_polygon(data = ell, aes(x = x, y = y, group = interaction(Bacteria), fill = Bacteria), size = 1, alpha = 0.3) +
+	xlab('TOF score') + 
+ 	ylab('Extinction score') +
+	theme_light()
+
+quartz.save(file = here('exploration', 'scatter_scores_Mix.pdf'),
+	type = 'pdf', dpi = 300, height = 7, width = 8)
+
+
+
+
+####
+# Is E cloacae different in ep2 when mixed with GCB?
+
+
+ecloc = copas %>% filter(Bacteria == '2783', Worm == 'ep2') 
+ecloc.sum = copas.sum %>% filter(Bacteria == '2783', Worm == 'ep2')
+ecloc.sum2 = copas.sum2 %>% filter(Bacteria == '2783', Worm == 'ep2')
+
+
+mg = copas %>% filter(Bacteria == 'MG', Worm == 'ep2') 
+
+
+ggplot(ecloc, aes(y = TOF, x = Group, fill = Group)) +
+	geom_boxplot()
+
+model = lm(TOF ~ Group, data = ecloc)
+summary(model)
+
+wilcox.test(TOF ~ Group, data = ecloc)
+
+# test over the means
+ggplot(ecloc.sum, aes(y = TOF_mean, x = Group, fill = Group)) +
+	geom_boxplot()
+
+
+model = lm(TOF_mean ~ Group, data = ecloc.sum)
+summary(model)
+
+wilcox.test(TOF_mean ~ Group, data = ecloc.sum)
+
+
+##
+model = aov(TOF ~ Sample, data = ecloc %>% filter(Group == 'Single'))
+summary(model)
+TukeyHSD(model)
+
+
+
+############
+## general test for each condition
+############
+
+
+
+# function for statistical analyses
+apply_lm = function(df, formula){
+      lm(data = df, as.formula(formula))      
+}
+
+# REMEMBER to change the variable inside mcp function
+apply_multilm = function(model){
+	multcomp::glht(model, linfct = multcomp::mcp(Sample = 'Tukey'))
+}
+
+nested = copas %>%
+	mutate(Sample = as.factor(Sample)) %>%
+    group_by(Group, Worm, Bacteria) %>%
+    nest()
+
+
+# calculate linear models per sample
+res = nested %>%
+    mutate(models = map(.f = apply_lm, .x = data, formula = 'TOF ~ Sample')) %>%
+	mutate(multcomp = map(.f = apply_multilm, .x = models)) %>%
+	mutate(results = map(.f = summary, .x = multcomp)) %>%
+	mutate(results = map(.f = tidy, .x = results)) %>%
+	dplyr::select(Group, Bacteria, Worm, results) %>%
+	unnest
+
+# results summary for TOF, between samples
+results.TOF.samples = res %>% rename(Contrast = lhs) %>% 
+	mutate(FDR = p.adjust(p.value, method = 'fdr'),
+		   p_stars = gtools::stars.pval(p.value),
+		   FDR_stars = gtools::stars.pval(FDR))
 
 
 
 
 
+# test between worm type, by bacteria
+# REMEMBER to change the variable inside mcp function
+apply_multilm = function(model){
+	multcomp::glht(model, linfct = multcomp::mcp(Worm = 'Tukey'))
+}
+nested = copas %>%
+	mutate(Worm = as.factor(Worm)) %>%
+    group_by(Group, Bacteria) %>%
+    nest()
 
 
+# calculate linear models per sample
+res = nested %>%
+    mutate(models = map(.f = apply_lm, .x = data, formula = 'TOF ~ Worm')) %>%
+	mutate(multcomp = map(.f = apply_multilm, .x = models)) %>%
+	mutate(results = map(.f = summary, .x = multcomp)) %>%
+	mutate(results = map(.f = tidy, .x = results)) %>%
+	dplyr::select(Group, Bacteria, Worm, results) %>%
+	unnest
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# results summary for TOF, between samples
+results.TOF.samples = res %>% rename(Contrast = lhs) %>% 
+	mutate(FDR = p.adjust(p.value, method = 'fdr'),
+		   p_stars = gtools::stars.pval(p.value),
+		   FDR_stars = gtools::stars.pval(FDR))
 
 
 
