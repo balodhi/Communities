@@ -303,7 +303,7 @@ library(circlize)
 col_fun = colorRamp2(c(-2, 0, 3), c("blue", "white", "red"))
 col_fun(seq(-3, 3))
 
-Heatmap(heat.data.sum, 
+Heatmap((heat.data.sum), 
         col = col_fun,
         name = "Z-score",
         column_title = "Bacterial strains",
@@ -316,6 +316,27 @@ quartz.save(type = 'pdf',
     file = here('analysis', 'Heatmap_class.pdf'), 
     width = 5, height = 8)
 
+
+
+heat.data.sum = t(scale(t(pca_b_data.sum), center = TRUE, scale = TRUE))
+
+col_fun = colorRamp2(c(-1, 0, 3), c("blue", "white", "red"))
+col_fun(seq(-3, 3))
+
+rownames(heat.data.sum) = c('E. cloacae', 'GCB', 'Comamonas sp', 'S. faecium', 'Ochrobactrum sp.', 'Achromobacter sp.', 'E. coli MG1655', 'E. coli OP50')
+
+Heatmap(t(heat.data.sum), 
+        col = col_fun,
+        name = "Z-score",
+        column_title = "Bacterial strains",
+        row_title = "Metabolite classes",
+        column_title_side = "bottom",
+        cluster_rows = FALSE)
+
+
+quartz.save(type = 'pdf', 
+    file = here('analysis', 'Heatmap_class_byMetabolite.pdf'), 
+    width = 5, height = 8)
 
 
 # 
@@ -439,7 +460,7 @@ rownames(heat.data) = heat.data[,1]
 heat.data[,1] = NULL
 
 # scale matrix with Z-scores
-heat.data = t(scale((heat.data), center = TRUE, scale = TRUE))
+heat.data = t(scale(t(heat.data), center = TRUE, scale = TRUE))
 
 # get Metabolite and Classes names, and arrange it by Class
 meta.list = data.b %>% filter(Strain == 'M131', Replicate == 1) %>%
