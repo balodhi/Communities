@@ -30,11 +30,54 @@ dir.create('analysis', showWarnings = TRUE, recursive = FALSE, mode = "0777")
 
 info = read_csv('Biolog_metabolites.csv',quote = "\"")
 
+## OLD CODE
+# # load data
+# pm1 = read_csv('pm1/Output/Summary.csv', quote = "\"") %>%
+#     rename(AUC_raw = `750nm_f_AUC`) %>% 
+#     filter(Strain != 'Marburg') %>%
+#     mutate(AUC_raw = replace_na(AUC_raw, 0)) %>%
+#     mutate(Strain = as.character(Strain),
+#            Strain = recode(Strain, '2783.0' = 'Ecloacae'),
+#            Row = str_match_all(Well,'[:digit:]{1,}'), #Get plate row names from well name. 
+#            Col = str_match_all(Well,'[:alpha:]{1,}'), #Get plate column names from well name
+#            Row = factor(Row, levels = 1:12), #Make them categorical variable with set order them
+#            Col = factor(Col, levels = LETTERS[1:8]),
+#            Strain = as.factor(Strain)) %>% #Change Type column coding
+#     group_by(Strain, Type, Plate, Replicate, Group) %>%
+#     mutate(AUC = AUC_raw - AUC_raw[Metabolite == 'Negative Control']) %>% # Normalisation agains negative control in each plate
+#     select(Strain, Type, Replicate, Index, Plate, Well, Row, Col, Metabolite, MetaboliteU, EcoCycID, KEGG_ID, Group, Class, AUC_raw, AUC) %>%
+#     ungroup 
 
-# load data
-pm1 = read_csv('pm1/Output/Summary.csv', quote = "\"") %>%
+#     # load data
+# pm2 = read_csv('pm2/Output/Summary.csv', quote = "\"") %>%
+#     rename(AUC_raw = `750nm_f_AUC`) %>% 
+#     filter(Strain != 'MAR') %>%
+#     mutate(AUC_raw = replace_na(AUC_raw, 0)) %>%
+#     mutate(Strain = as.character(Strain),
+#            Strain = recode(Strain, '2783.0' = 'Ecloacae'),
+#            Row = str_match_all(Well,'[:digit:]{1,}'), #Get plate row names from well name. 
+#            Col = str_match_all(Well,'[:alpha:]{1,}'), #Get plate column names from well name
+#            Row = factor(Row, levels = 1:12), #Make them categorical variable with set order them
+#            Col = factor(Col, levels = LETTERS[1:8]),
+#            Strain = as.factor(Strain)) %>% #Change Type column coding
+#     group_by(Strain, Type, Plate, Replicate, Group) %>%
+#     mutate(AUC = AUC_raw - AUC_raw[Metabolite == 'Negative Control']) %>% # Normalisation agains negative control in each plate
+#     select(Strain, Type, Replicate, Index, Plate, Well, Row, Col, Metabolite, MetaboliteU, EcoCycID, KEGG_ID, Group, Class, AUC_raw, AUC) %>%
+#     ungroup 
+
+
+# data.b = rbind(pm1, pm2) 
+
+# data.sum = data.b %>% filter(Metabolite != 'Negative Control') %>%
+#     group_by(Strain, Class) %>%
+#     summarise(Score = sum(AUC)) 
+
+
+
+# # load data
+data.b = read_csv('data/Output/Summary.csv', quote = "\"") %>%
     rename(AUC_raw = `750nm_f_AUC`) %>% 
-    filter(Strain != 'Marburg') %>%
+    # filter(!Strain %in% c('GCB_EC', 'GCB_OP50')) %>%
     mutate(AUC_raw = replace_na(AUC_raw, 0)) %>%
     mutate(Strain = as.character(Strain),
            Strain = recode(Strain, '2783.0' = 'Ecloacae'),
@@ -48,34 +91,18 @@ pm1 = read_csv('pm1/Output/Summary.csv', quote = "\"") %>%
     select(Strain, Type, Replicate, Index, Plate, Well, Row, Col, Metabolite, MetaboliteU, EcoCycID, KEGG_ID, Group, Class, AUC_raw, AUC) %>%
     ungroup 
 
-    # load data
-pm2 = read_csv('pm2/Output/Summary.csv', quote = "\"") %>%
-    rename(AUC_raw = `750nm_f_AUC`) %>% 
-    filter(Strain != 'MAR') %>%
-    mutate(AUC_raw = replace_na(AUC_raw, 0)) %>%
-    mutate(Strain = as.character(Strain),
-           Strain = recode(Strain, '2783.0' = 'Ecloacae'),
-           Row = str_match_all(Well,'[:digit:]{1,}'), #Get plate row names from well name. 
-           Col = str_match_all(Well,'[:alpha:]{1,}'), #Get plate column names from well name
-           Row = factor(Row, levels = 1:12), #Make them categorical variable with set order them
-           Col = factor(Col, levels = LETTERS[1:8]),
-           Strain = as.factor(Strain)) %>% #Change Type column coding
-    group_by(Strain, Type, Plate, Replicate, Group) %>%
-    mutate(AUC = AUC_raw - AUC_raw[Metabolite == 'Negative Control']) %>% # Normalisation agains negative control in each plate
-    select(Strain, Type, Replicate, Index, Plate, Well, Row, Col, Metabolite, MetaboliteU, EcoCycID, KEGG_ID, Group, Class, AUC_raw, AUC) %>%
-    ungroup 
-
-
-data.b = rbind(pm1, pm2) 
 
 data.sum = data.b %>% filter(Metabolite != 'Negative Control') %>%
-    group_by(Strain, Class) %>%
+    group_by(Strain, Replicate, Class) %>%
     summarise(Score = sum(AUC)) 
+
+
 
 # PCA
 
 #Generate infor tables which describes samples
 bioinfo = data.b %>% 
+    # filter(!Strain %in% c('GCB_EC', 'GCB_OP50')) %>%
     group_by(Strain, Type) %>%
     summarise %>%
     data.frame
@@ -85,7 +112,8 @@ rownames(bioinfo) = bioinfo$SampleID
 
 # filter by strain and Plate if you want
 pca_b_data = data.b %>%
-    filter(Metabolite != 'Negative Control')
+    # filter(!Strain %in% c('GCB_EC', 'GCB_OP50')) %>%
+    filter(Metabolite != 'Negative Control', Replicate == 1)
 
 
 
@@ -114,7 +142,7 @@ colnames(ind_df) = c('Dim1', 'Dim2', 'Dim3', 'Dim4', 'Dim5', 'Type', 'Strain')
 
 
 # plot!
-ggplot(ind_df, aes(x = Dim1, y = Dim5, color = Strain)) + 
+ggplot(ind_df, aes(x = Dim1, y = Dim2, color = Strain)) + 
     geom_point(size = 6, show.legend = NA, alpha = 1) + 
     xlab(paste("PC1 - ", round(res.pca$eig[1,2], 1), " % of variance", sep = "")) + 
     ylab(paste("PC2 - ", round(res.pca$eig[2,2], 1), " % of variance", sep = "")) +
@@ -124,7 +152,7 @@ ggplot(ind_df, aes(x = Dim1, y = Dim5, color = Strain)) +
     theme_classic()
 
 quartz.save(type = 'pdf', 
-    file = here('analysis', 'PCA_MAIN_Dim14.pdf'), 
+    file = here('analysis', 'PCA_MAIN.pdf'), 
     width = 9, height = 9)
 
 
@@ -245,7 +273,9 @@ dev.off()
 
 
 # filter by strain and Plate if you want
-pca_b_data.sum = data.sum
+pca_b_data.sum = data.sum %>%
+    filter(Replicate == 1) %>%
+    ungroup
 
 
 
@@ -274,7 +304,7 @@ colnames(ind_df) = c('Dim1', 'Dim2', 'Dim3', 'Dim4', 'Dim5', 'Type', 'Strain')
 
 
 # plot!
-ggplot(ind_df, aes(x = Dim1, y = Dim2, color = Strain)) + 
+ggplot(ind_df, aes(x = Dim1, y = Dim4, color = Strain)) + 
     geom_point(size = 6, show.legend = NA, alpha = 1) + 
     xlim(-4, 4) +
     ylim(-4, 4) +
@@ -303,6 +333,8 @@ library(circlize)
 col_fun = colorRamp2(c(-2, 0, 3), c("blue", "white", "red"))
 col_fun(seq(-3, 3))
 
+colnames(heat.data.sum) = c('E. cloacae', 'GCB', 'B. subtilis', 'E. coli MG1655', 'Commamonas sp', 'S. faecium', 'Rhodococcus sp.', 'Ochrobactrum sp.', 'Achromobacter sp.',  'E. coli OP50')
+
 Heatmap((heat.data.sum), 
         col = col_fun,
         name = "Z-score",
@@ -320,10 +352,10 @@ quartz.save(type = 'pdf',
 
 heat.data.sum = t(scale(t(pca_b_data.sum), center = TRUE, scale = TRUE))
 
-col_fun = colorRamp2(c(-1, 0, 3), c("blue", "white", "red"))
+col_fun = colorRamp2(c(-1.6, 0, 2.6), c("blue", "white", "red"))
 col_fun(seq(-3, 3))
 
-rownames(heat.data.sum) = c('E. cloacae', 'GCB', 'Comamonas sp', 'S. faecium', 'Ochrobactrum sp.', 'Achromobacter sp.', 'E. coli MG1655', 'E. coli OP50')
+rownames(heat.data.sum) = c('E. cloacae', 'GCB', 'B. subtilis', 'E. coli MG1655', 'Commamonas sp', 'S. faecium', 'Rhodococcus sp.', 'Ochrobactrum sp.', 'Achromobacter sp.',  'E. coli OP50')
 
 Heatmap(t(heat.data.sum), 
         col = col_fun,
@@ -335,7 +367,7 @@ Heatmap(t(heat.data.sum),
 
 
 quartz.save(type = 'pdf', 
-    file = here('analysis', 'Heatmap_class_byMetabolite.pdf'), 
+    file = here('analysis', 'Heatmap_class_byStrain.pdf'), 
     width = 5, height = 8)
 
 
