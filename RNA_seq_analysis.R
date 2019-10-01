@@ -21,7 +21,7 @@ library(tidyverse)
 library(DESeq2)
 # notice that DESeq2 library masks 'rename' function from dplyr 
 # library(ensembldb) # use only if you are going to deal with db
-library(biobroom)
+library(here)
 library(RColorBrewer)
 library(circlize)
 library(ComplexHeatmap)
@@ -42,6 +42,13 @@ samples = read.delim("sampleInfo.txt")
 dir = getwd()
 rownames(samples) = samples$Name
 
+# load kegg tables from wormenrichr
+kegg = read.delim("KEGG_2019.txt", header = FALSE) 
+kegg = kegg[,-2]
+
+
+rownames(kegg) = kegg[,1] ; kegg = kegg[,-1]
+
 # prepare a list with file names
 files = file.path(dir,"quants", samples$Name, "quant.sf")
 names(files) = samples$Name
@@ -59,19 +66,21 @@ ah = AnnotationHub::AnnotationHub()
 ahDb = AnnotationHub::query(ah, pattern = c("Caenorhabditis elegans", "EnsDb", 97))
 ahEdb = ahDb[[1]]
 # generate the database 
-tx2gene.complete = transcripts(ahEdb, return.type="DataFrame")
+tx2gene.complete = transcripts(ahEdb, return.type = "DataFrame")
 
 # fetch descriptions of genes
 info = genes(ahEdb) %>% 
 	tbl_df() %>%
-	dplyr::select(width, gene_id, gene_name, gene_biotype, description, symbol)
+	dplyr::select(width, gene_id, gene_name, gene_biotype, description, entrezid) %>%
+	unnest
 
-# join transcription info with gene ids
+# join transcription info with gene ids and entrezids
 info.join = tx2gene.complete %>% 
 	tbl_df() %>%
 	dplyr::select(tx_id, tx_biotype, gene_id, tx_name) %>%
 	left_join(info)
 
+write.csv(info, here('summary','gene_ids_mapping.csv'))
 
 # subset to have tx_id in first column, and gene_id in second
 tx2gene = tx2gene.complete[,c(1,7)]
@@ -119,52 +128,18 @@ gene_counts = gene_counts %>%
 res = results(dds) 
 
 
-
-## ploting some data
-###
-# quick check on a couple genes of interest
-# WBGene00045401 = eol-1
-# WBGene00018997 = F57B9.3
-gns = c('WBGene00045401', 'WBGene00018997')
-
-# acdh-1 and acdh-2
-# WBGene00016943 = acdh-1
-# WBGene00015894 = acdh-2
-gns = c('WBGene00016943', 'WBGene00015894')
-
-# WBGene00009221 = acs-2
-# WBGene00010759 = cysl-2 
-
-gns = c('WBGene00009221', 'WBGene00010759')
-
-gene_counts %>%
-	filter(gene_id %in% gns) %>%
-	ggplot(aes(y = counts, x = Sample)) +
-	geom_boxplot(aes(fill = Worm)) +
-	# scale_y_continuous(trans='log2') +
-	# facet_wrap(~symbol) +
-	facet_wrap(~symbol, scales = 'free_y') +
-	labs(x = 'Sample',
-		 y = 'Normalised counts') +
-	theme_classic()
-
-quartz.save(file = here('summary', 'PCA_main.pdf'),
-    type = 'pdf', dpi = 300, height = 6, width = 8)
-
-
-
 # results with different shape of contrasts, tidy
 res.N2 = results(dds,   contrast = c("Sample", "N2_OP50" , "N2_GCB"))  
-res.N2 = lfcShrink(dds, contrast = c("Sample", "N2_OP50" , "N2_GCB"), res = res.N2)
+res.N2 = lfcShrink(dds, contrast = c("Sample", "N2_OP50" , "N2_GCB"), res = res.N2, type = 'ashr')
 
 res.ep2 = results(dds,  contrast = c("Sample",  "ep2_OP50", "ep2_GCB")) 
-res.ep2 = lfcShrink(dds, contrast = c("Sample", "ep2_OP50", "ep2_GCB"), res = res.ep2)
+res.ep2 = lfcShrink(dds, contrast = c("Sample", "ep2_OP50", "ep2_GCB"), res = res.ep2, type = 'ashr')
 
 res.GCB = results(dds,  contrast = c("Sample",  "N2_GCB", "ep2_GCB"))   
-res.GCB = lfcShrink(dds, contrast = c("Sample", "N2_GCB", "ep2_GCB"), res = res.GCB)
+res.GCB = lfcShrink(dds, contrast = c("Sample", "N2_GCB", "ep2_GCB"), res = res.GCB, type = 'ashr')
 
 res.OP50 = results(dds, contrast = c("Sample",   "N2_OP50", "ep2_OP50")) 
-res.OP50 = lfcShrink(dds, contrast = c("Sample", "N2_OP50", "ep2_OP50"), res = res.OP50)
+res.OP50 = lfcShrink(dds, contrast = c("Sample", "N2_OP50", "ep2_OP50"), res = res.OP50, type = 'ashr')
 
 # tidying the results
 res.N2.tidy = as_tibble(res.N2, rownames = 'gene_id') %>% mutate(
@@ -212,21 +187,21 @@ write.xlsx(list_of_datasets, here('summary', 'complete_stats.xlsx'), colNames = 
 
 
 ### MA plots for every comparison
-plotMA(res.N2,  ylim=c(-2,2),  alpha = 0.05)
+plotMA(res.N2,  ylim=c(-3,3),  alpha = 0.05)
 # idx <- identify(res.N2$baseMean, res.N2$log2FoldChange)
 # rownames(res.N2)[idx]
 quartz.save(file = here('summary', 'MAplot_N2.pdf'),
     type = 'pdf', dpi = 300, height = 8, width = 11)
 
-plotMA(res.ep2,  ylim=c(-2,2),  alpha = 0.05)
+plotMA(res.ep2,  ylim=c(-3,3),  alpha = 0.05)
 quartz.save(file = here('summary', 'MAplot_ep2.pdf'),
     type = 'pdf', dpi = 300, height = 8, width = 11)
 
-plotMA(res.GCB,  ylim=c(-2,2),  alpha = 0.05)
+plotMA(res.GCB,  ylim=c(-3,3),  alpha = 0.05)
 quartz.save(file = here('summary', 'MAplot_GCB.pdf'),
     type = 'pdf', dpi = 300, height = 8, width = 11)
 
-plotMA(res.OP50,  ylim=c(-2,2),  alpha = 0.05)
+plotMA(res.OP50,  ylim=c(-3,3),  alpha = 0.05)
 quartz.save(file = here('summary', 'MAplot_OP50.pdf'),
     type = 'pdf', dpi = 300, height = 8, width = 11)
 
@@ -368,29 +343,131 @@ quartz.save(file = here('summary', 'PCA_main_rld.pdf'),
 
 
 
-########## Venn diagrams
-### 
+##################################
+### Exploratory plots/analysis ###
+##################################
+
+
+# barplot that shows the % of DE genes in the 4 main comparisons
+results.complete %>%
+	filter(!is.na(padj)) %>%
+	mutate(Sig = ifelse(padj < 0.05, 1, 0)) %>%
+	group_by(Contrast_description, Contrast, Sig) %>%
+	summarise(N = n()) %>%
+	mutate(Total = sum(N),
+		   Fraction = (N/Total)*100) %>%
+	filter(Sig == 1) %>%
+	ggplot(aes(x = Contrast, y = Fraction)) +
+	geom_bar(stat = 'identity', width = 0.5, aes(fill = Contrast)) +
+	scale_fill_brewer(palette = "Dark2") + 
+	scale_x_discrete(limits = c('N2', 'ep2', 'OP50', 'GCB')) +	
+	scale_y_continuous(limits = c(0, 70), breaks = c(0, 20, 40, 60, 70)) +
+	labs(y = '% of DE genes',
+         x = 'Condition') +
+	theme_light()
+
+quartz.save(file = here('summary', 'DEgenes_barplot.pdf'),
+    type = 'pdf', dpi = 300, height = 8, width = 8)
+
+
+# barplot that shows the % of DE genes in the 4 main comparisons
+
+
+results.complete %>%
+	filter(!is.na(padj)) %>%
+	mutate(Sig = ifelse(padj < 0.05, 1, 0)) %>%
+	group_by(Contrast_description, Contrast, Direction, Sig) %>%
+	summarise(N = n()) %>%
+	group_by(Contrast_description, Contrast) %>%
+	mutate(Total = sum(N),
+		   Fraction = round((N/Total)*100,1)) %>%
+	group_by(Contrast_description, Contrast,  Sig) %>%
+	arrange(desc(Direction)) %>%
+	mutate(label_ypos = cumsum(Fraction)) %>%
+	filter(Sig == 1) %>%
+	ggplot(aes(x = Contrast, y = Fraction, fill = Direction)) +
+	geom_bar(stat = 'identity', width = 0.5) +
+	geom_text(aes(y = label_ypos, label = Fraction), vjust = 1.6, size = 3.5) +
+	scale_fill_brewer(palette = "Dark2") + 
+	scale_x_discrete(limits = c('N2', 'ep2', 'OP50', 'GCB')) +	
+	scale_y_continuous(limits = c(0, 70), breaks = c(0, 20, 40, 60, 70)) +
+	labs(y = '% of DE genes',
+         x = 'Condition') +
+	theme_light()
+
+quartz.save(file = here('summary', 'DEgenes_direction_barplot.pdf'),
+    type = 'pdf', dpi = 300, height = 8, width = 8)
+
+
+
+
+
+
+## ploting some data
+###
+# quick check on a couple genes of interest
+# WBGene00045401 = eol-1
+# WBGene00018997 = F57B9.3
+gns = c('WBGene00045401', 'WBGene00018997')
+
+# acdh-1 and acdh-2
+# WBGene00016943 = acdh-1
+# WBGene00015894 = acdh-2
+gns = c('WBGene00016943', 'WBGene00015894')
+
+# WBGene00009221 = acs-2
+# WBGene00010759 = cysl-2 
+
+gns = c('WBGene00009221', 'WBGene00010759')
+
+gene_counts %>%
+	filter(gene_id %in% gns) %>%
+	ggplot(aes(y = counts, x = Sample)) +
+	geom_boxplot(aes(fill = Worm)) +
+	# scale_y_continuous(trans='log2') +
+	# facet_wrap(~symbol) +
+	facet_wrap(~symbol, scales = 'free_y') +
+	labs(x = 'Sample',
+		 y = 'Normalised counts') +
+	theme_classic()
+
+quartz.save(file = here('summary', 'PCA_main.pdf'),
+    type = 'pdf', dpi = 300, height = 6, width = 8)
+
+
+
+
+
+
+results.complete %>%
+	filter(!is.na(padj), padj < 0.05, Contrast == 'N2') %>%
+	arrange(log2FoldChange) 
+
+gene_counts
+
+
+
+
+
+
+#####################
+### Venn diagrams ###
+##################### 
+ 
 
 require(UpSetR)
 
-# test
-# listInput <- list(
-# 	one = c('perro', 'casa', 'jardin', 'hogar', 'puto'), 
-# 	two = c('hogar', 'puto', 'marte'), 
-# 	three = c('casa', 'jardin', 'hogar'))
-
-# upset(fromList(listInput), order.by = "freq")
-
+# original comparation
 N2.gns = res.N2.tidy %>% filter(padj < 0.05) %>% select(gene_id) %>% t %>% as.vector
 ep2.gns = res.ep2.tidy %>% filter(padj < 0.05) %>% select(gene_id) %>% t %>% as.vector
 GCB.gns = res.GCB.tidy %>% filter(padj < 0.05) %>% select(gene_id) %>% t %>% as.vector
 OP50.gns = res.OP50.tidy %>% filter(padj < 0.05) %>% select(gene_id) %>% t %>% as.vector
 
 listInput = list(
-	N2 = N2.gns,
-	ep2 = ep2.gns,
-	GCB = GCB.gns,
-	OP50 = OP50.gns)
+	N2_OP50vsGCB = N2.gns,
+	ep2_OP50vsGCB = ep2.gns,
+	GCB_N2vsEP2 = GCB.gns,
+	OP50_N2vsEP2 = OP50.gns)
 
 # generate overall differences plot
 upset(fromList(listInput), order.by = "freq")
@@ -401,41 +478,244 @@ quartz.save(file = here('summary', 'UpSet_complete.pdf'),
 
 
 
-N2.gns = res.N2.tidy %>%   	 filter(padj < 0.05, Direction == 'Up') %>% select(gene_id) %>% t %>% as.vector
-ep2.gns = res.ep2.tidy %>% 	 filter(padj < 0.05, Direction == 'Up') %>% select(gene_id) %>% t %>% as.vector
-GCB.gns = res.GCB.tidy %>% 	 filter(padj < 0.05, Direction == 'Up') %>% select(gene_id) %>% t %>% as.vector
-OP50.gns = res.OP50.tidy %>% filter(padj < 0.05, Direction == 'Up') %>% select(gene_id) %>% t %>% as.vector
+## function to automathically compare samples and get gene set 
+d_contrast = function(data = dds, feature = 'Sample', contrast = c('N2_OP50', 'N2_GCB')){
+	ctr = c(feature, contrast)
+	temp.res = results(data, contrast = ctr)
+	temp.res = lfcShrink(data, contrast = ctr, res = temp.res, type = 'ashr')
+	temp.res.tidy = as_tibble(temp.res, rownames = 'gene_id') %>%
+		mutate(Direction = ifelse(log2FoldChange > 0, 'Up', 'Down'),
+			   Contrast = paste(contrast, collapse = '_vs_')) %>%
+		left_join(info) %>%
+		select(Contrast, gene_id, gene_name, everything(), -symbol)
+	gns = temp.res.tidy %>% filter(padj < 0.05) %>% select(gene_id) %>% t %>% as.vector
+	return(gns)
+}
+
+# test
+d_contrast(dds)
+
+
+
+#####
+# comparison of sample against 'Control' (N2 - OP50)
+
+N2_GCB.gns = d_contrast(contrast   = c('N2_OP50', 'N2_GCB'))
+ep2_OP50.gns = d_contrast(contrast = c('N2_OP50', 'ep2_OP50'))
+ep2_GCB.gns = d_contrast(contrast  = c('N2_OP50', 'ep2_GCB'))
 
 listInput = list(
-	N2 = N2.gns,
-	ep2 = ep2.gns,
-	GCB = GCB.gns,
-	OP50 = OP50.gns)
+	'N2-OP50 vs N2-GCB' = N2_GCB.gns,
+	'N2-OP50 vs ep2-OP50' = ep2_OP50.gns,
+	'N2-OP50 vs ep2-GCB' = ep2_GCB.gns)
 
 # generate overall differences plot
 upset(fromList(listInput), order.by = "freq")
 
-quartz.save(file = here('summary', 'UpSet_Upregulated.pdf'),
+quartz.save(file = here('summary', 'UpSet_vsN2-OP50.pdf'),
     type = 'pdf', dpi = 300, height = 6, width = 8)
 
 
 
-N2.gns = res.N2.tidy %>%   	 filter(padj < 0.05, Direction == 'Down') %>% select(gene_id) %>% t %>% as.vector
-ep2.gns = res.ep2.tidy %>% 	 filter(padj < 0.05, Direction == 'Down') %>% select(gene_id) %>% t %>% as.vector
-GCB.gns = res.GCB.tidy %>% 	 filter(padj < 0.05, Direction == 'Down') %>% select(gene_id) %>% t %>% as.vector
-OP50.gns = res.OP50.tidy %>% filter(padj < 0.05, Direction == 'Down') %>% select(gene_id) %>% t %>% as.vector
+#####
+# comparison of sample against ep2 - OP50
+
+gns_1 = d_contrast(contrast = c('ep2_OP50', 'N2_OP50'))
+gns_2 = d_contrast(contrast = c('ep2_OP50', 'N2_GCB'))
+gns_3 = d_contrast(contrast = c('ep2_OP50', 'ep2_GCB'))
 
 listInput = list(
-	N2 = N2.gns,
-	ep2 = ep2.gns,
-	GCB = GCB.gns,
-	OP50 = OP50.gns)
+	'ep2-OP50 vs N2-OP50' = gns_1,
+	'ep2-OP50 vs N2-GCB'  = gns_2,
+	'ep2-OP50 vs ep2-GCB' = gns_3)
 
 # generate overall differences plot
 upset(fromList(listInput), order.by = "freq")
 
-quartz.save(file = here('summary', 'UpSet_Downregulated.pdf'),
+quartz.save(file = here('summary', 'UpSet_vs_ep2-OP50.pdf'),
     type = 'pdf', dpi = 300, height = 6, width = 8)
+
+
+
+
+
+
+
+###########################
+### Enrichment analysis ###
+###########################
+
+
+library(KEGG.db)
+library(goseq)
+# BiocManager::install("TxDb.Celegans.UCSC.ce11.refGene")
+library(TxDb.Celegans.UCSC.ce11.refGene)
+# BE CAREFUL: it masks select from dplyr
+library(org.Ce.eg.db)
+
+### this is a test to see the differentially enriched genes in https://amp.pharm.mssm.edu/WormEnrichr/
+OP50.gns = res.OP50.tidy %>% dplyr::filter(padj < 0.05) %>% dplyr::select(gene_name) %>% t %>% as.vector
+write.table(OP50.gns, 'OP50_genes.txt', quote = FALSE, col.names = F, row.names = F)
+
+N2.gns = res.N2.tidy %>% dplyr::filter(padj < 0.05) %>% dplyr::select(gene_name) %>% t %>% as.vector
+write.table(N2.gns, 'N2_genes.txt', quote = FALSE, col.names = F, row.names = F)
+
+
+###
+# FOR GOSEQ ANALYSIS
+###
+
+# remove the NAs
+resdat = res.OP50[complete.cases(res.OP50$padj),]
+
+degenes = as.integer(resdat$padj<0.05)
+names(degenes) = rownames(resdat)
+
+# remove duplicate gene names
+degenes = degenes[match(unique(names(degenes)),names(degenes))]
+
+# table(degenes)
+
+# the database we are using is this, let's extract the gene length
+# ahEdb
+
+# get the gene lengths
+# txsByGene = transcriptsBy(ahEdb,"gene")
+# lengthData = median(width(txsByGene))
+
+# lengthData should be the same length as degenes
+# test for gene list length
+# length(intersect(names(lengthData), names(degenes)))
+
+lengthDataBias = lengthData[names(degenes)]
+
+# Fitting the probability weighting function (PWF) 
+pwf = nullp(degenes, bias.data = lengthDataBias, plot.fit = FALSE)
+# plot the PWF
+plotPWF(pwf)
+
+
+# Wallenius approximation for enrichment
+GO.wall = goseq(pwf, "ce11", "ensGene")
+
+# random samplig approx., it takes a bit longer
+GO.samp = goseq(pwf, "ce11", "ensGene", method = "Sampling", repcnt = 1000)
+
+
+# compare the p-values from both methods
+plot(log10(GO.wall[,2]), log10(GO.samp[match(GO.wall[,1],GO.samp[,1]),2]),
+ xlab="log10(Wallenius p-values)",ylab="log10(Sampling p-values)",
+ xlim=c(-3,0))
+abline(0,1,col=3,lty=2)
+
+# extract over-represented GOs after adjusting p-value with fdr
+enriched.GO = GO.wall$category[p.adjust(GO.wall$over_represented_pvalue, method = "fdr") < .05]
+
+#
+capture.output(for(go in enriched.GO[1:length(enriched.GO)]){
+	print(GO.db::GOTERM[[go]])
+	cat("--------------------------------------\n")
+})
+
+
+# this code needs this
+ahEdb = ahDb[[1]]
+
+# function for enrichment analysis
+GO.enrich = function(data) {
+	print('Starting analysis!')
+	# remove the NAs
+	resdat = data[complete.cases(data$padj),]
+	degenes = as.integer(resdat$padj < 0.05)
+	names(degenes) = rownames(resdat)
+
+	# remove duplicate gene names
+	degenes = degenes[match(unique(names(degenes)),names(degenes))]
+
+	# get the gene lengths
+	txsByGene = transcriptsBy(ahEdb,"gene")
+	lengthData = median(width(txsByGene))
+	# filter names
+	lengthDataBias = lengthData[names(degenes)]
+
+	print('Fitting the probability weighting function:')
+	# Fitting the probability weighting function (PWF) 
+	pwf = nullp(degenes, bias.data = lengthDataBias, plot.fit = FALSE)
+	# plot the PWF
+	plotPWF(pwf)
+	print('Applying goseq analysis to both GOs and KEGG')
+	# Wallenius approximation for enrichment
+	GO.wall = goseq(pwf, "ce11", "ensGene")
+	GO.wall.kegg = goseq(pwf, "ce11", "ensGene", test.cats = "KEGG")
+	# extract over-represented GOs after adjusting p-value with fdr
+	enriched.GO = GO.wall$category[p.adjust(GO.wall$over_represented_pvalue, method = "fdr") < .05]
+	enriched.KEGG = GO.wall.kegg$category[p.adjust(GO.wall.kegg$over_represented_pvalue, method = "fdr") < .05]
+	print('Giving some human input to the GO categories, and saving everything!')
+	# enriched GOs with info
+	enriched.GO.info = capture.output(for(go in enriched.GO[1:10]){
+		print(GO.db::GOTERM[[go]])
+		cat("--------------------------------------\n")
+	})
+	out.list = list(
+		Enriched.KEGG = enriched.KEGG,
+		Enriched.GO = enriched.GO,
+		Enriched.GO.info = enriched.GO.info)
+	return(out.list)
+}
+
+# Calculate the enriched funcions in each result!!
+# this takes a bit of time 
+
+N2.enrich = GO.enrich(res.N2)
+ep2.enrich = GO.enrich(res.ep2)
+OP50.enrich = GO.enrich(res.OP50)
+GCB.enrich = GO.enrich(res.GCB)
+
+
+
+
+
+
+
+
+
+
+
+
+# Get the mapping from ENSEMBL 2 Entrez
+en2eg = as.list(org.Ce.egENSEMBL2EG)
+# Get the mapping from Entrez 2 KEGG
+eg2kegg = as.list(org.Ce.egPATH)
+# Define a function which gets all unique KEGG IDs
+# associated with a set of Entrez IDs
+grepKEGG = function(id,mapkeys) {
+	unique(unlist(mapkeys[id],use.names=FALSE))
+}
+# Apply this function to every entry in the mapping from
+# ENSEMBL 2 Entrez to combine the two maps
+kegg = lapply(en2eg,grepKEGG,eg2kegg)
+head(kegg)
+
+
+
+KEGG = goseq(pwf,gene2cat = kegg)
+head(KEGG)
+
+GO.wall.kegg = goseq(pwf, "ce11", "ensGene", test.cats = "KEGG")
+
+
+
+
+
+cosa = res.GCB.tidy %>% left_join(info) %>%
+	dplyr::filter(padj < 0.1, !is.na(padj), !is.na(entrezid) ,abs(log2FoldChange) > 1) %>%
+	dplyr::select(entrezid) %>% t %>% as.vector 
+
+
+kk = enrichKEGG(gene = cosa, organism = 'cel')
+head(kk, n=10)
+
+
 
 
 
