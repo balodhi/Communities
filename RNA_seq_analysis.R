@@ -560,6 +560,21 @@ write.table(OP50.gns, 'OP50_genes.txt', quote = FALSE, col.names = F, row.names 
 N2.gns = res.N2.tidy %>% dplyr::filter(padj < 0.05) %>% dplyr::select(gene_name) %>% t %>% as.vector
 write.table(N2.gns, 'N2_genes.txt', quote = FALSE, col.names = F, row.names = F)
 
+# KEGG databases
+# get databases for genes and pathways from KEGG
+kegg.links.entrez = limma::getGeneKEGGLinks('cel', convert = TRUE) 
+kegg.links.ids = limma::getGeneKEGGLinks('cel')
+path.ids = limma::getKEGGPathwayNames('cel', remove.qualifier = TRUE)
+kegg.links = cbind(kegg.links.entrez, kegg.links.ids[,1])
+colnames(kegg.links) = c('entrezid', 'PathwayID', 'KEGG_genes')
+
+kegg.links = kegg.links %>% 
+	as_tibble %>% 
+	mutate(entrezid = as.integer(entrezid)) %>% 
+	left_join(path.ids) %>%
+	mutate(PathwayID = str_replace(PathwayID, 'path:cel', ''))
+
+
 
 ###
 # FOR GOSEQ ANALYSIS
@@ -569,6 +584,7 @@ write.table(N2.gns, 'N2_genes.txt', quote = FALSE, col.names = F, row.names = F)
 resdat = res.OP50[complete.cases(res.OP50$padj),]
 
 degenes = as.integer(resdat$padj<0.05)
+degenes = as.integer(resdat$padj<0.05 & abs(resdat$log2FoldChange) > 1)
 names(degenes) = rownames(resdat)
 
 # remove duplicate gene names
@@ -597,6 +613,8 @@ plotPWF(pwf)
 
 # Wallenius approximation for enrichment
 GO.wall = goseq(pwf, "ce11", "ensGene")
+GO.wall.kegg = goseq(pwf, "ce11", "ensGene", test.cats = "KEGG") # kegg categories
+
 
 # random samplig approx., it takes a bit longer
 GO.samp = goseq(pwf, "ce11", "ensGene", method = "Sampling", repcnt = 1000)
@@ -620,13 +638,12 @@ capture.output(for(go in enriched.GO[1:length(enriched.GO)]){
 
 # this code needs this
 ahEdb = ahDb[[1]]
-
 # function for enrichment analysis
-GO.enrich = function(data) {
+GO.enrich = function(data, FC = 0) {
 	print('Starting analysis!')
 	# remove the NAs
 	resdat = data[complete.cases(data$padj),]
-	degenes = as.integer(resdat$padj < 0.05)
+	degenes = as.integer(resdat$padj < 0.05 & abs(resdat$log2FoldChange) > FC)
 	names(degenes) = rownames(resdat)
 
 	# remove duplicate gene names
@@ -645,8 +662,8 @@ GO.enrich = function(data) {
 	plotPWF(pwf)
 	print('Applying goseq analysis to both GOs and KEGG')
 	# Wallenius approximation for enrichment
-	GO.wall = goseq(pwf, "ce11", "ensGene")
-	GO.wall.kegg = goseq(pwf, "ce11", "ensGene", test.cats = "KEGG")
+	GO.wall = goseq(pwf, "ce11", "ensGene"); GO.wall = as_tibble(GO.wall)
+	GO.wall.kegg = goseq(pwf, "ce11", "ensGene", test.cats = "KEGG"); GO.wall.kegg = as_tibble(GO.wall.kegg)
 	# extract over-represented GOs after adjusting p-value with fdr
 	enriched.GO = GO.wall$category[p.adjust(GO.wall$over_represented_pvalue, method = "fdr") < .05]
 	enriched.KEGG = GO.wall.kegg$category[p.adjust(GO.wall.kegg$over_represented_pvalue, method = "fdr") < .05]
@@ -657,63 +674,235 @@ GO.enrich = function(data) {
 		cat("--------------------------------------\n")
 	})
 	out.list = list(
-		Enriched.KEGG = enriched.KEGG,
-		Enriched.GO = enriched.GO,
+		Enriched.KEGG = GO.wall.kegg,
+		Enriched.GO = GO.wall,
 		Enriched.GO.info = enriched.GO.info)
 	return(out.list)
 }
 
+##
 # Calculate the enriched funcions in each result!!
 # this takes a bit of time 
 
-N2.enrich = GO.enrich(res.N2)
-ep2.enrich = GO.enrich(res.ep2)
-OP50.enrich = GO.enrich(res.OP50)
-GCB.enrich = GO.enrich(res.GCB)
+N2.enrich = GO.enrich(res.N2, FC = 1)
+ep2.enrich = GO.enrich(res.ep2, FC = 1)
+OP50.enrich = GO.enrich(res.OP50, FC = 1)
+GCB.enrich = GO.enrich(res.GCB, FC = 1)
+
+
+### PATHWAY ENRICHMENT ANALYSIS
+# tidy results a bit
+N2.kegg = N2.enrich$Enriched.KEGG %>%
+	mutate(padj = p.adjust(over_represented_pvalue, method = 'fdr'),
+		   Contrast = 'N2') %>%
+	left_join(kegg.links %>% 
+			dplyr::select(PathwayID, Description) %>% 
+			unique, by = c('category' = 'PathwayID'))
+
+ep2.kegg = ep2.enrich$Enriched.KEGG %>%
+	mutate(padj = p.adjust(over_represented_pvalue, method = 'fdr'),
+		   Contrast = 'ep2') %>%
+	left_join(kegg.links %>% 
+			dplyr::select(PathwayID, Description) %>% 
+			unique, by = c('category' = 'PathwayID'))
+
+OP50.kegg = OP50.enrich$Enriched.KEGG %>%
+	mutate(padj = p.adjust(over_represented_pvalue, method = 'fdr'),
+		   Contrast = 'OP50') %>%
+	left_join(kegg.links %>% 
+			dplyr::select(PathwayID, Description) %>% 
+			unique, by = c('category' = 'PathwayID'))
+
+GCB.kegg = GCB.enrich$Enriched.KEGG %>%
+	mutate(padj = p.adjust(over_represented_pvalue, method = 'fdr'),
+		   Contrast = 'GCB') %>%
+	left_join(kegg.links %>% 
+			dplyr::select(PathwayID, Description) %>% 
+			unique, by = c('category' = 'PathwayID'))
+
+# join everything in the same place
+res.kegg = rbind(N2.kegg, ep2.kegg, OP50.kegg, GCB.kegg)
+
+# how many enriched pathways we have
+res.kegg %>%
+	dplyr::filter(padj <= 0.05) %>%
+	group_by(Contrast) %>%
+	summarise(N = n())
+
+res.kegg %>% filter(padj <= 0.05)
+
+# filter the names of the enriched pathways
+de.path = res.kegg %>%
+	dplyr::filter(padj <= 0.05, !is.na(Description)) %>%
+	select(Description) %>% unique %>% t %>% as.vector %>% sort
+
+
+# enrichment procedure
+enrbrks = c(0, -log(0.05, 10), 2, 3, 4, 100)
+enrlbls = c('N.S.','<0.05','<0.01','<0.001','<0.0001')
+enrcols = colorRampPalette(c("gray90", "steelblue1", "blue4"))(n = 6)
+
+p.theme = theme(axis.ticks = element_blank(), panel.border = element_blank(), 
+            panel.background = element_blank(), panel.grid.minor = element_blank(), 
+            panel.grid.major = element_blank(), axis.line = element_line(colour = NA), 
+            axis.line.x = element_line(colour = NA), axis.line.y = element_line(colour = NA), 
+            strip.text = element_text(colour = "black", face = "bold", 
+                size = 10), axis.text.x = element_text(face = "bold", 
+                colour = "black", size = 10, angle = 90, hjust = 1))
+
+
+# plot enrichment p-values
+res.kegg %>% 
+	filter(Description %in% de.path) %>%
+	mutate(logFDR = ifelse(-log10(padj)<0,0,-log10(padj)),
+		   logFDRbin = cut(logFDR, breaks = enrbrks, labels = enrlbls, right = FALSE),
+		   Description = factor(Description, levels = de.path)) %>%
+	ungroup %>%
+	ggplot(aes(x = Contrast, y = Description)) +
+		geom_tile(aes(fill = logFDRbin)) +
+		scale_fill_manual(values = enrcols) + 
+		labs(fill = 'FDR') + 
+		p.theme
+
+
+quartz.save(file = here('summary', 'KEGG_pathways_enrichment.pdf'),
+    type = 'pdf', dpi = 300, height = 8, width = 7)
+
+
+# # Get the mapping from ENSEMBL 2 Entrez
+# en2eg = as.list(org.Ce.egENSEMBL2EG)
+# # Get the mapping from Entrez 2 KEGG
+# eg2kegg = as.list(org.Ce.egPATH)
+# # Define a function which gets all unique KEGG IDs
+# # associated with a set of Entrez IDs
+# grepKEGG = function(id,mapkeys) {
+# 	unique(unlist(mapkeys[id],use.names=FALSE))
+# }
+# # Apply this function to every entry in the mapping from
+# # ENSEMBL 2 Entrez to combine the two maps
+# kegg = lapply(en2eg,grepKEGG,eg2kegg)
+# head(kegg)
+
+
+# gns = c()
+# for (i in 1:length(kegg)){
+# 	if('00903' %in% kegg[[i]]){
+# 		gns = c(gns, names(kegg[i]))
+# 	}
+# }
+
+# info %>% filter(gene_id %in% gns)
+
+
+
+###
+### GO TERMS ANALYSIS
+
+
+
+### PATHWAY ENRICHMENT ANALYSIS
+# tidy results a bit
+N2.go = N2.enrich$Enriched.GO %>%
+	mutate(padj = p.adjust(over_represented_pvalue, method = 'fdr'),
+		   Contrast = 'N2')
+
+ep2.go = ep2.enrich$Enriched.GO %>%
+	mutate(padj = p.adjust(over_represented_pvalue, method = 'fdr'),
+		   Contrast = 'ep2') 
+
+OP50.go = OP50.enrich$Enriched.GO %>%
+	mutate(padj = p.adjust(over_represented_pvalue, method = 'fdr'),
+		   Contrast = 'OP50') 
+
+GCB.go = GCB.enrich$Enriched.GO %>%
+	mutate(padj = p.adjust(over_represented_pvalue, method = 'fdr'),
+		   Contrast = 'GCB') 
 
 
 
 
+# join everything in the same place
+res.go = rbind(N2.go, ep2.go, OP50.go, GCB.go)
+
+# how many enriched pathways we have
+res.go %>%
+	dplyr::filter(padj <= 0.05) %>%
+	group_by(Contrast) %>%
+	summarise(N = n())
+
+res.go %>% filter(padj <= 0.05)
+
+# filter the names of the enriched pathways
+de.go = res.go %>%
+	dplyr::filter(padj <= 0.05, !is.na(term)) %>%
+	select(term) %>% unique %>% t %>% as.vector %>% sort
+
+
+# enrichment procedure
+enrbrks = c(0, -log(0.05, 10), 2, 3, 4, 100)
+enrlbls = c('N.S.','<0.05','<0.01','<0.001','<0.0001')
+enrcols = colorRampPalette(c("gray90", "steelblue1", "blue4"))(n = 6)
+
+
+# plot enrichment p-values
+ont = 'BP'
+res.go %>% 
+	filter(term %in% de.go, ontology %in% ont) %>%
+	mutate(logFDR = ifelse(-log10(padj)<0,0,-log10(padj)),
+		   logFDRbin = cut(logFDR, breaks = enrbrks, labels = enrlbls, right = FALSE),
+		   term = factor(term, levels = de.go)) %>%
+	ungroup %>%
+	ggplot(aes(x = Contrast, y = term)) +
+		geom_tile(aes(fill = logFDRbin)) +
+		scale_fill_manual(values = enrcols) + 
+		labs(fill = 'FDR') + 
+		p.theme
+
+
+quartz.save(file = here('summary', 'GO_BP_enrichment.pdf'),
+    type = 'pdf', dpi = 300, height = 15, width = 8)
 
 
 
+# plot enrichment p-values
+ont = 'MF'
+res.go %>% 
+	filter(term %in% de.go, ontology %in% ont) %>%
+	mutate(logFDR = ifelse(-log10(padj)<0,0,-log10(padj)),
+		   logFDRbin = cut(logFDR, breaks = enrbrks, labels = enrlbls, right = FALSE),
+		   term = recode(term, 'oxidoreductase activity, acting on paired donors, with oxidation of a pair of donors resulting in the reduction of molecular oxygen to two molecules of water' = 'oxidoreductase activity, red. of molecular oxygen to 2 x H2O'),
+		   term = recode(term, 'oxidoreductase activity, acting on paired donors, with incorporation or reduction of molecular oxygen' = 'oxidoreductase activity, with incorporation or red of molecular oxygen'),
+		   term = factor(term, levels = de.go)) %>%
+	ungroup %>%
+	ggplot(aes(x = Contrast, y = term)) +
+		geom_tile(aes(fill = logFDRbin)) +
+		scale_fill_manual(values = enrcols) + 
+		labs(fill = 'FDR') + 
+		p.theme
+
+
+quartz.save(file = here('summary', 'GO_MF_enrichment.pdf'),
+    type = 'pdf', dpi = 300, height = 10, width = 7)
 
 
 
+# plot enrichment p-values
+ont = 'CC'
+res.go %>% 
+	filter(term %in% de.go, ontology %in% ont) %>%
+	mutate(logFDR = ifelse(-log10(padj)<0,0,-log10(padj)),
+		   logFDRbin = cut(logFDR, breaks = enrbrks, labels = enrlbls, right = FALSE),
+		   term = factor(term, levels = de.go)) %>%
+	ungroup %>%
+	ggplot(aes(x = Contrast, y = term)) +
+		geom_tile(aes(fill = logFDRbin)) +
+		scale_fill_manual(values = enrcols) + 
+		labs(fill = 'FDR') + 
+		p.theme
 
 
-# Get the mapping from ENSEMBL 2 Entrez
-en2eg = as.list(org.Ce.egENSEMBL2EG)
-# Get the mapping from Entrez 2 KEGG
-eg2kegg = as.list(org.Ce.egPATH)
-# Define a function which gets all unique KEGG IDs
-# associated with a set of Entrez IDs
-grepKEGG = function(id,mapkeys) {
-	unique(unlist(mapkeys[id],use.names=FALSE))
-}
-# Apply this function to every entry in the mapping from
-# ENSEMBL 2 Entrez to combine the two maps
-kegg = lapply(en2eg,grepKEGG,eg2kegg)
-head(kegg)
-
-
-
-KEGG = goseq(pwf,gene2cat = kegg)
-head(KEGG)
-
-GO.wall.kegg = goseq(pwf, "ce11", "ensGene", test.cats = "KEGG")
-
-
-
-
-
-cosa = res.GCB.tidy %>% left_join(info) %>%
-	dplyr::filter(padj < 0.1, !is.na(padj), !is.na(entrezid) ,abs(log2FoldChange) > 1) %>%
-	dplyr::select(entrezid) %>% t %>% as.vector 
-
-
-kk = enrichKEGG(gene = cosa, organism = 'cel')
-head(kk, n=10)
+quartz.save(file = here('summary', 'GO_CC_enrichment.pdf'),
+    type = 'pdf', dpi = 300, height = 8, width = 5)
 
 
 
