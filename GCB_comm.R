@@ -832,25 +832,27 @@ dif.sum = copas.sum %>%
 
 # scatter plot of the scores
 
-gr = 'Mix'
+gr = 'Single'
 
 ell = dif.sum %>%
-	filter(Group == gr,!Bacteria %in% c('Myb27', 'Myb45')) %>%
+	filter(Group == gr,!Bacteria %in% c('Myb27', 'Myb45'), !(Sample == 'GCB_2_2' & Group == 'Single')) %>%
 	group_by(Bacteria) %>% 
 	do(getellipse(.$TOF_score, .$Ext_score, 1)) %>% 
 	data.frame
 
 dif.sum %>%
-	filter(Group == gr, !Bacteria %in% c('Myb27', 'Myb45')) %>%
+	filter(Group == gr,!Bacteria %in% c('Myb27', 'Myb45'), !(Sample == 'GCB_2_2' & Group == 'Single')) %>%
 	ggplot(aes(x = TOF_score, y = Ext_score)) +
 	geom_point(aes(colour = Bacteria), size = 5) +
 	geom_path(data = ell, aes(x = x, y = y, colour = Bacteria), size = 1) +
 	geom_polygon(data = ell, aes(x = x, y = y, group = interaction(Bacteria), fill = Bacteria), size = 1, alpha = 0.3) +
+	scale_fill_manual(values = colsel(10, palette = 'sat1')) +
+	scale_color_manual(values = colsel(10, palette = 'sat1')) +
 	xlab('TOF score') + 
  	ylab('Extinction score') +
-	theme_light()
+	theme_classic()
 
-quartz.save(file = here('exploration', 'scatter_scores_Mix.pdf'),
+quartz.save(file = here('exploration', 'scatter_scores_Single.pdf'),
 	type = 'pdf', dpi = 300, height = 7, width = 8)
 
 
