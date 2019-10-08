@@ -330,9 +330,10 @@ quartz.save(type = 'pdf',
 heat.data.sum = t(scale((pca_b_data.sum), center = TRUE, scale = TRUE))
 
 library(circlize)
-col_fun = colorRamp2(c(-2, 0, 3), c("blue", "white", "red"))
+col_fun = colorRamp2(c(-2.4, 0, 2.5), c("blue", "white", "red"))
 col_fun(seq(-3, 3))
 
+colnames(heat.data.sum) = c('E. cloacae', 'GCB', 'GCB + EC', 'GCB + OP50' ,'B. subtilis', 'E. coli MG1655', 'Commamonas sp', 'S. faecium', 'Rhodococcus sp.', 'Ochrobactrum sp.', 'Achromobacter sp.',  'E. coli OP50') # 10 species
 colnames(heat.data.sum) = c('E. cloacae', 'GCB', 'B. subtilis', 'E. coli MG1655', 'Commamonas sp', 'S. faecium', 'Rhodococcus sp.', 'Ochrobactrum sp.', 'Achromobacter sp.',  'E. coli OP50')
 
 Heatmap((heat.data.sum), 
@@ -345,8 +346,8 @@ Heatmap((heat.data.sum),
 
 
 quartz.save(type = 'pdf', 
-    file = here('analysis', 'Heatmap_class.pdf'), 
-    width = 5, height = 8)
+    file = here('analysis', 'Heatmap_mixes_class.pdf'), 
+    width = 5.5, height = 8)
 
 
 
@@ -470,7 +471,7 @@ ht
 # col_fun = yarrr::piratepal("basel")[1:9]
 
 quartz.save(type = 'pdf', 
-    file = here('analysis', 'Heatmap_all_classes.pdf'), 
+    file = here('analysis', 'Heatmap_all_mixes_classes.pdf'), 
     width = 7, height = 10)
 
 
