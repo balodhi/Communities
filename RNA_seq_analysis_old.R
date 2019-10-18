@@ -425,8 +425,11 @@ gns = c('WBGene00009221', 'WBGene00010759')
 # WBGene00003623 = nhr-25
 gns = c('WBGene00016943','WBGene00009221', 'WBGene00020343', 'WBGene00003623')
 
+
+gns = c('WBGene00000003', 'WBGene00000110')
+
 gene_counts %>%
-	filter(gene_id %in% gns) %>%
+	dplyr::filter(gene_id %in% gns) %>%
 	ggplot(aes(y = counts, x = Sample)) +
 	geom_boxplot(aes(fill = Worm)) +
 	# scale_y_continuous(trans='log2') +
@@ -562,10 +565,13 @@ library(org.Ce.eg.db)
 OP50.gns = res.OP50.tidy %>% dplyr::filter(padj < 0.05, abs(log2FoldChange) >= 1) %>% dplyr::select(gene_name) %>% t %>% as.vector
 write.table(OP50.gns, 'OP50_genes.txt', quote = FALSE, col.names = F, row.names = F)
 
-N2.gns = res.N2.tidy %>% dplyr::filter(padj < 0.05, abs(log2FoldChange) >= 1) %>% dplyr::select(gene_name) %>% t %>% as.vector
-write.table(N2.gns, 'N2_genes.txt', quote = FALSE, col.names = F, row.names = F)
+# if log2FC is > 0, this means that the gene is DOWN-regulated in GCB
+N2.gns = res.N2.tidy %>% dplyr::filter(padj < 0.05, log2FoldChange >= 0) %>% dplyr::select(gene_name) %>% t %>% as.vector
+write.table(N2.gns, 'N2_DOWN_genes.txt', quote = FALSE, col.names = F, row.names = F)
 
-
+# if log2FC is < 0, this means that the gene is UP-regulated in GCB
+N2.gns = res.N2.tidy %>% dplyr::filter(padj < 0.05, log2FoldChange <= 0) %>% dplyr::select(gene_name) %>% t %>% as.vector
+write.table(N2.gns, 'N2_UP_genes.txt', quote = FALSE, col.names = F, row.names = F)
 
 
 
@@ -699,7 +705,7 @@ GO.enrich = function(data, FC = 0) {
 # Calculate the enriched funcions in each result!!
 # this takes a bit of time 
 
-N2.enrich = GO.enrich(res.N2, FC = 1)
+N2.enrich = GO.enrich(res.N2, FC = 0)
 ep2.enrich = GO.enrich(res.ep2, FC = 1)
 OP50.enrich = GO.enrich(res.OP50, FC = 1)
 GCB.enrich = GO.enrich(res.GCB, FC = 1)
