@@ -426,7 +426,28 @@ gns = c('WBGene00009221', 'WBGene00010759')
 gns = c('WBGene00016943','WBGene00009221', 'WBGene00020343', 'WBGene00003623')
 
 
-gns = c('WBGene00000003', 'WBGene00000110')
+
+# for Filipe, for QQ review
+# hlh-30
+gns = c('WBGene00020930')
+
+# fmo-2
+gns = c('WBGene00001477')
+
+# ftn-1
+gns = c('WBGene00001500')
+
+# hif-1
+gns = c('WBGene00001851')
+
+# sqst-1
+gns = c('WBGene00011737')
+
+# fat-7
+gns = c('WBGene00001399')
+
+# fat-1
+gns = c('WBGene00001393')
 
 gene_counts %>%
 	dplyr::filter(gene_id %in% gns) %>%
@@ -439,8 +460,8 @@ gene_counts %>%
 		 y = 'Normalised counts') +
 	theme_classic()
 
-quartz.save(file = here('summary', 'PCA_main.pdf'),
-    type = 'pdf', dpi = 300, height = 6, width = 8)
+quartz.save(file = here('summary', 'fat-1.pdf'),
+    type = 'pdf', dpi = 300, height = 7, width = 6)
 
 
 
