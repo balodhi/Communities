@@ -68,26 +68,26 @@ Sphin = Sphin %>% select(-Abbreviation) %>%
 
 n_react = c(dim(Acro)[1], 
 			dim(GCB)[1], 
-			dim(Arthro)[1], 
+			# dim(Arthro)[1], 
 			dim(Marb)[1], 
 			dim(Com)[1], 
 			dim(EC)[1], 
 			dim(MG)[1], 
 			dim(EcoB)[1], 
-			dim(Micro)[1], 
+			# dim(Micro)[1], 
 			dim(Ochro)[1], 
 			dim(Rod)[1], 
 			dim(Sphin)[1])
 
 strains = c('Achromobacter \n xylosoxidans', 
 			'Acinetobacter \n lwoffii',
-			'Arthrobacter \n castelli',
+			# 'Arthrobacter \n castelli',
 			'Bacillus \n subtilis',
 			'Comamonas \n testeroni',
 			'Enterobacter \n cloacae',
 			'Escherichia \n coli MG1655',
 			'Escherichia \n coli SE11',
-			'Microbacterium \n paraoxydans',
+			# 'Microbacterium \n paraoxydans',
 			'Ochrobactrum \n anthropi',
 			'Rhodococcus \n erythropolis',
 			'Sphingobacterium \n faecium')
@@ -95,13 +95,13 @@ strains = c('Achromobacter \n xylosoxidans',
 strains_short = c(
 	'Achromobacter',
 	'Acinetobacter',
-	'Arthrobacter',
+	# 'Arthrobacter',
 	'Bacillus',
 	'Comamonas',
 	'Enterobacter',
 	'Escherichia K12',
 	'Escherichia B',
-	'Microbacterium',
+	# 'Microbacterium',
 	'Ochrobactrum',
 	'Rhodococcus',
 	'Sphingobacterium')
@@ -118,7 +118,7 @@ df1 %>% arrange(N_reactions) %>%
 	theme_classic() 
 
 quartz.save(file = here('summary', 'React_per_strain.pdf'),
-    type = 'pdf', dpi = 300, height = 8, width = 12)
+    type = 'pdf', dpi = 300, height = 8, width = 11)
 
 
 
@@ -142,13 +142,13 @@ Sphin_react = unique(Sphin$Abbreviation)
 list_react = list(
 	Acro = Acro_react,
 	GCB = GCB_react,
-	Arthro = Arthro_react,
+	# Arthro = Arthro_react,
 	Marb = Marb_react,
 	Com = Com_react,
 	EC = EC_react,
 	MG = MG_react,
 	EcoB = EcoB_react,
-	Micro = Micro_react,
+	# Micro = Micro_react,
 	Ochro = Ochro_react,
 	Rod = Rod_react,
 	Sphin = Sphin_react)
@@ -201,7 +201,7 @@ cosa = c(list_react[1], list_react[2])
 # it gives back a tibble 
 
 comb.react = function(list, n){
-	x = 1:12
+	x = 1:10
 	comb = combn(x, n)
 	void = c()
 	for (i in 1:dim(comb)[2]){
@@ -220,7 +220,7 @@ comb.react(list_react, 3)
 # create an empty tibble as a primer
 reactxspc = tibble(n = 0, Mean = 0, SD = 0)
 
-for (i in 2:12){
+for (i in 2:10){
 	tib = comb.react(list_react, i)
 	reactxspc = bind_rows(reactxspc, tib)
 }
@@ -228,7 +228,7 @@ for (i in 2:12){
 
 # calculate the mean and sd of only one organism
 a = c()
-for (i in 1:12){
+for (i in 1:10){
 	n = length(list_react[[i]])
 	a = c(a, n)
 }
@@ -266,7 +266,7 @@ quartz.save(file = here('summary', 'total_reactions.pdf'),
 
 # Acinetobacter
 # Achromobacter
-# Comamonas
+# Bacilus subtilis
 # Enterobacter cloacae
 # Escherichia coli
 # Rhodococcus
@@ -279,7 +279,7 @@ quartz.save(file = here('summary', 'total_reactions.pdf'),
 F_list_react = list(
 	Acro = Acro_react,
 	GCB = GCB_react,
-	# Com = Com_react,
+	Marb = Marb_react,
 	EC = EC_react,
 	MG = MG_react,
 	Rod = Rod_react,
@@ -309,13 +309,13 @@ reactxspc %>%
 	geom_line() +
 	scale_x_continuous(breaks = seq(1, 12, by = 1), expand = c(0, 0)) +
 	scale_y_continuous(limits = c(1000, 3400), expand = c(0,0)) +
-	geom_segment(aes(x = 6, xend = 6, y = 1000, yend = pos), colour = 'grey50', alpha = .2) +
+	geom_segment(aes(x = 7, xend = 7, y = 1000, yend = pos), colour = 'grey50', alpha = .2) +
 	# geom_segment(aes(x = 1, xend = 12, y = 3343 * 0.95, yend = 3343 * 0.95), colour = 'grey50', alpha = .2) +
 	geom_hline(yintercept = 3343 * 0.95, linetype = 'longdash', colour = 'grey20', alpha = .5) +
 	geom_hline(yintercept = 3343 * 0.90, linetype = 'longdash', colour = 'grey20', alpha = .5) +
-	geom_point(aes(x = 6, y = pos), shape = 21, size = 2, fill = 'blue') +
-	# geom_label_repel(x = 6,§ y = pos, label = pos) +
-	annotate('label', x = 6.4, y = pos - 50, label = pos) +
+	geom_point(aes(x = 7, y = pos), shape = 21, size = 2, fill = 'blue') +
+	# geom_label_repel(x = 7,§ y = pos, label = pos) +
+	annotate('label', x = 7.4, y = pos - 50, label = pos) +
 	annotate('text', x = 1.5, y = (3343 * 0.95) + 25, label = '95%', colour = 'grey20') +
 	annotate('text', x = 1.5, y = (3343 * 0.90) + 25, label = '90%', colour = 'grey20') +
 	ylab("Number of \n unique reactions") +
@@ -345,6 +345,78 @@ write.xlsx(list_of_datasets, here('summary', 'stats.xlsx'), colNames = T, rowNam
 #################################################
 
 
+## remaking functions to calculate intersections 
+# function that calculates the number of total and overlay reactions in a list of organisms
+n.react.overlay = function(list){
+	mod = Venn(list)
+	total.rxns = overlap(mod)
+
+	## curate the final list
+	# change _e for (e) and take unique list
+	# remove every entry with '__'
+	# remove every entry with '_copy1', '_copy2'...
+	# remove every entry with 'biomass'
+	
+	total.rxns = str_replace(total.rxns, '_e', '(e)')
+	total.rxns = total.rxns[!str_detect(total.rxns, 'biomass')]
+	total.rxns = total.rxns[!str_detect(total.rxns, '__')]
+	total.rxns = total.rxns[!str_detect(total.rxns, '_copy')]
+	total.rxns = total.rxns[!str_detect(total.rxns, 'DM_atp_c_')]
+	
+	n = length(total.rxns)
+	return(n)
+}
+
+
+comb.react.overlay = function(list, n){
+	x = 1:10
+	comb = combn(x, n)
+	void = c()
+	for (i in 1:dim(comb)[2]){
+		j = n.react.overlay(list[comb[,i]])
+		void = c(void, j)
+	}
+	Mean = mean(void)
+	SD = sd(void)
+	df = tibble(n, Mean, SD)
+	return(df)
+}
+# test
+comb.react.overlay(list_react, 7)
+
+
+
+
+# create an empty tibble as a primer
+reactxspc.ov = tibble(n = 0, Mean = 0, SD = 0)
+
+for (i in 2:10){
+	tib = comb.react.overlay(list_react, i)
+	reactxspc.ov = bind_rows(reactxspc.ov, tib)
+}
+
+
+reactxspc.ov = reactxspc.ov %>%
+	bind_rows(uni.reacts) %>%
+	filter(n >= 2) %>%
+	mutate(SD = ifelse(is.na(SD), 0, SD))
+
+
+# plot results
+reactxspc.ov %>%
+	ggplot(aes(x = n, y = Mean)) +
+	geom_ribbon(aes(ymin = Mean - SD, ymax = Mean + SD), alpha = 0.2) +
+	geom_line() +
+	scale_x_continuous(breaks = seq(1, 10, by = 1), expand = c(0, 0)) +
+	scale_y_continuous(expand = c(0,0)) +
+	ylab("Number of \n shared reactions") +
+	xlab("Community size") +
+	# ylim(1000, 3400) +
+	theme_bw()
+
+
+quartz.save(file = here('summary', 'shared_reactions.pdf'),
+    type = 'pdf', dpi = 300, height = 8, width = 9)
 
 
 
@@ -352,10 +424,65 @@ write.xlsx(list_of_datasets, here('summary', 'stats.xlsx'), colNames = T, rowNam
 
 
 
+F_list_react = list(
+	Acro = Acro_react,
+	GCB = GCB_react,
+	Marb = Marb_react,
+	EC = EC_react,
+	MG = MG_react,
+	Rod = Rod_react,
+	Sphin = Sphin_react
+	)
+
+# union of all sets
+mod = Venn(F_list_react)
+# number of total and unique reactions of the 12 strains
+total.rxns = sort(overlap(mod))
+
+# clean list
+total.rxns = str_replace(total.rxns, '_e', '(e)')
+total.rxns = total.rxns[!str_detect(total.rxns, 'biomass')]
+total.rxns = total.rxns[!str_detect(total.rxns, '__')]
+total.rxns = total.rxns[!str_detect(total.rxns, '_copy')]
+total.rxns = total.rxns[!str_detect(total.rxns, 'DM_atp_c_')]
+
+
+
+pos = length(total.rxns)
+
+# plot results
+reactxspc.ov %>%
+	ggplot(aes(x = n, y = Mean)) +
+	geom_ribbon(aes(ymin = Mean - SD, ymax = Mean + SD), alpha = 0.2) +
+	geom_line() +
+	scale_x_continuous(breaks = seq(2, 12, by = 1), expand = c(0, 0)) +
+	scale_y_continuous(expand = c(0,0)) +
+	# geom_segment(aes(x = 6, xend = 6, y = 1000, yend = pos), colour = 'grey50', alpha = .2) +
+	# geom_segment(aes(x = 1, xend = 12, y = 3343 * 0.95, yend = 3343 * 0.95), colour = 'grey50', alpha = .2) +
+	# geom_hline(yintercept = 3343 * 0.95, linetype = 'longdash', colour = 'grey20', alpha = .5) +
+	# geom_hline(yintercept = 3343 * 0.90, linetype = 'longdash', colour = 'grey20', alpha = .5) +
+	geom_point(aes(x = 7, y = pos), shape = 21, size = 2, fill = 'blue') +
+	# geom_label_repel(x = 7,§ y = pos, label = pos) +
+	annotate('label', x = 7.4, y = pos - 50, label = pos) +
+	# annotate('text', x = 1.5, y = (3343 * 0.95) + 25, label = '95%', colour = 'grey20') +
+	# annotate('text', x = 1.5, y = (3343 * 0.90) + 25, label = '90%', colour = 'grey20') +
+	ylab("Number of \n shared reactions") +
+	xlab("Community size") +
+	# ylim(1000, 3400) +
+	theme_bw()
+
+
+quartz.save(file = here('summary', 'shared_reactions_subcommunity.pdf'),
+    type = 'pdf', dpi = 300, height = 8, width = 9)
 
 
 
 
+
+# saving tables in an excel file
+list_of_datasets = list('Reactions per strain' = df1, 'Summary stats' = reactxspc)
+
+write.xlsx(list_of_datasets, here('summary', 'stats.xlsx'), colNames = T, rowNames = F) 
 
 
 
